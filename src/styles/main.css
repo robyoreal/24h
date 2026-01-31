@@ -1,0 +1,257 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow: hidden;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+#toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(40, 40, 40, 0.95);
+  padding: 12px 20px;
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  border-bottom: 2px solid #333;
+  z-index: 1000;
+  flex-wrap: wrap;
+}
+
+.tool-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tool-btn {
+  background: #2a2a2a;
+  border: 2px solid #444;
+  color: #fff;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.tool-btn:hover {
+  background: #3a3a3a;
+  border-color: #666;
+}
+
+.tool-btn.active {
+  background: #4a9eff;
+  border-color: #4a9eff;
+}
+
+.tool-btn svg {
+  display: block;
+}
+
+#stroke-width {
+  width: 100px;
+  cursor: pointer;
+}
+
+#width-display {
+  min-width: 40px;
+  font-size: 14px;
+  color: #aaa;
+}
+
+#color-palette {
+  display: flex;
+  gap: 6px;
+}
+
+.color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.2s;
+}
+
+.color-swatch:hover {
+  transform: scale(1.1);
+}
+
+.color-swatch.active {
+  border: 2px solid #4a9eff;
+  transform: scale(1.15);
+}
+
+.ink-meter-container {
+  margin-left: auto;
+}
+
+#ink-meter {
+  position: relative;
+  width: 150px;
+  height: 24px;
+  background: #2a2a2a;
+  border: 2px solid #444;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+#ink-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #4a9eff, #33ff99);
+  width: 100%;
+  transition: width 0.3s;
+}
+
+#ink-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 4px rgba(0,0,0,0.8);
+  z-index: 1;
+}
+
+#position-display {
+  font-size: 12px;
+  color: #aaa;
+  font-family: 'Courier New', monospace;
+}
+
+#canvas-container {
+  position: fixed;
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #0a0a0a;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+#main-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  image-rendering: pixelated;
+}
+
+/* Text Input Modal */
+#text-input-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+#text-input-modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: #2a2a2a;
+  padding: 24px;
+  border-radius: 8px;
+  border: 2px solid #444;
+  min-width: 400px;
+}
+
+#text-input {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  background: #1a1a1a;
+  border: 2px solid #444;
+  color: #fff;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+#text-input:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.modal-buttons button {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#text-submit {
+  background: #4a9eff;
+  color: #fff;
+}
+
+#text-submit:hover {
+  background: #3a8eef;
+}
+
+#text-cancel {
+  background: #444;
+  color: #fff;
+}
+
+#text-cancel:hover {
+  background: #555;
+}
+
+/* Firebase Notice */
+.notice {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 152, 0, 0.95);
+  color: #000;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  z-index: 1000;
+  display: none;
+}
+
+.notice.show {
+  display: block;
+}
+
+.notice code {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Loading state */
+.loading {
+  cursor: wait !important;
+}

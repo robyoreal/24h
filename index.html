@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ephemeral Wall</title>
+  <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body>
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <div class="tool-group">
+      <button id="brush-tool" class="tool-btn active" title="Brush">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2l9 9-9 9-9-9 9-9z"/>
+        </svg>
+      </button>
+      <button id="text-tool" class="tool-btn" title="Text">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <text x="6" y="18" font-size="16" font-weight="bold">T</text>
+        </svg>
+      </button>
+      <button id="undo-btn" class="tool-btn" title="Undo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 7v6h6M3 13a9 9 0 1 0 2-5.5"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="tool-group">
+      <label>Width:</label>
+      <input type="range" id="stroke-width" min="5" max="50" value="10" step="1">
+      <span id="width-display">10px</span>
+    </div>
+
+    <div class="tool-group">
+      <div id="color-palette">
+        <div class="color-swatch active" data-color="#FFFFFF" style="background: #FFFFFF; border: 2px solid #333;"></div>
+        <div class="color-swatch" data-color="#FF5733" style="background: #FF5733;"></div>
+        <div class="color-swatch" data-color="#33FF57" style="background: #33FF57;"></div>
+        <div class="color-swatch" data-color="#3357FF" style="background: #3357FF;"></div>
+        <div class="color-swatch" data-color="#FFFF33" style="background: #FFFF33;"></div>
+        <div class="color-swatch" data-color="#FF33FF" style="background: #FF33FF;"></div>
+        <div class="color-swatch" data-color="#33FFFF" style="background: #33FFFF;"></div>
+        <div class="color-swatch" data-color="#000000" style="background: #000000;"></div>
+      </div>
+    </div>
+
+    <div class="tool-group ink-meter-container">
+      <label>Ink:</label>
+      <div id="ink-meter">
+        <div id="ink-fill"></div>
+        <span id="ink-text">250,000</span>
+      </div>
+    </div>
+
+    <div class="tool-group">
+      <span id="position-display">x: 0, y: 0</span>
+    </div>
+  </div>
+
+  <!-- Canvas Container -->
+  <div id="canvas-container">
+    <canvas id="main-canvas"></canvas>
+  </div>
+
+  <!-- Text Input Modal (hidden by default) -->
+  <div id="text-input-modal" class="hidden">
+    <div class="modal-content">
+      <input type="text" id="text-input" placeholder="Type your message..." maxlength="100">
+      <div class="modal-buttons">
+        <button id="text-submit">Add</button>
+        <button id="text-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase Config Notice -->
+  <div id="firebase-notice" class="notice">
+    ⚠️ Firebase not configured. See <code>src/config/firebase.config.js</code>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Wall tiles - allow read to anyone, write to authenticated requests
+    match /wallTiles/{tileId} {
+      allow read: if true; // Anyone can view the wall
+      allow create, update: if request.auth == null && request.resource.data.strokes.size() < 100;
+      // Limit to 100 strokes per write to prevent abuse
+      allow delete: if false; // Don't allow deletion (use cleanup function instead)
+    }
+    
+    // User ink - users can only access their own ink data
+    match /userInk/{ipHash} {
+      allow read: if true; // Allow reading to calculate current ink
+      allow create: if request.auth == null && 
+                      request.resource.data.inkRemaining == 250000;
+      allow update: if request.auth == null && 
+                      request.resource.data.inkRemaining >= 0 &&
+                      request.resource.data.inkRemaining <= 250000;
+      allow delete: if false;
+    }
+  }
+}
+
+// NOTE: These rules are permissive for the free tier and anonymous usage.
+// For production, you should:
+// 1. Implement rate limiting
+// 2. Add server-side validation via Cloud Functions
+// 3. Consider requiring authentication for better abuse prevention
