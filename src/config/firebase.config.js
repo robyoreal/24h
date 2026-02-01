@@ -9,12 +9,13 @@
 // 6. Set Firestore rules to allow read/write (see firestore.rules file)
 
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyC3jiPltFvkkOn_W67-a_aORi2m3ugC6Pc",
+  authDomain: "hwall-b6237.firebaseapp.com",
+  projectId: "hwall-b6237",
+  storageBucket: "hwall-b6237.firebasestorage.app",
+  messagingSenderId: "419476940811",
+  appId: "1:419476940811:web:10227984c27fccaf1cbf0e",
+  measurementId: "G-9BDQM6QBWJ"
 };
 
 // IP Geolocation API configuration
@@ -46,5 +47,5 @@ export const COLOR_PALETTE = [
 ];
 
 // Buffer settings
-export const INACTIVITY_TIMEOUT = 10000; // 10 seconds
+export const INACTIVITY_TIMEOUT = 2000; // 2 seconds
 export const MAX_BUFFER_SIZE = 50; // Max strokes before force flush

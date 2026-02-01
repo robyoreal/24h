@@ -90,7 +90,7 @@ export class CanvasManager {
   startStroke(worldX, worldY, width, color, country) {
     this.isDrawing = true;
     this.currentStroke = {
-      points: [[worldX, worldY, width]],
+      points: [worldX, worldY, width], // Flat array: [x1,y1,w1, x2,y2,w2, ...]
       color: color,
       timestamp: Date.now(),
       country: country,
@@ -102,27 +102,35 @@ export class CanvasManager {
   continueStroke(worldX, worldY, width) {
     if (!this.isDrawing || !this.currentStroke) return 0;
     
-    const lastPoint = this.currentStroke.points[this.currentStroke.points.length - 1];
-    const dx = worldX - lastPoint[0];
-    const dy = worldY - lastPoint[1];
+    const len = this.currentStroke.points.length;
+    const lastX = this.currentStroke.points[len - 3];
+    const lastY = this.currentStroke.points[len - 2];
+    const lastWidth = this.currentStroke.points[len - 1];
+    
+    const dx = worldX - lastX;
+    const dy = worldY - lastY;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
     // Calculate ink cost
-    const avgWidth = (width + lastPoint[2]) / 2;
+    const avgWidth = (width + lastWidth) / 2;
     const inkCost = distance * avgWidth;
     
-    this.currentStroke.points.push([worldX, worldY, width]);
+    this.currentStroke.points.push(worldX, worldY, width);
     this.currentStroke.inkUsed += inkCost;
     
     // Render just this new segment for smooth drawing
-    this.renderStrokeSegment(lastPoint, [worldX, worldY, width], this.currentStroke.color);
+    this.renderStrokeSegment(
+      [lastX, lastY, lastWidth], 
+      [worldX, worldY, width], 
+      this.currentStroke.color
+    );
     
     return inkCost;
   }
   
   // End stroke
   endStroke() {
-    if (this.currentStroke && this.currentStroke.points.length > 1) {
+    if (this.currentStroke && this.currentStroke.points.length > 3) {
       this.localStrokes.push(this.currentStroke);
     }
     this.isDrawing = false;
@@ -194,7 +202,7 @@ export class CanvasManager {
   // Render entire canvas
   render() {
     // Clear canvas
-    this.ctx.fillStyle = '#0a0a0a';
+    this.ctx.fillStyle = '#ffffff';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
     const now = Date.now();
@@ -239,7 +247,7 @@ export class CanvasManager {
       this.ctx.globalAlpha = 1;
     } else {
       // Render drawing stroke
-      if (!stroke.points || stroke.points.length < 2) return;
+      if (!stroke.points || stroke.points.length < 6) return; // Need at least 2 points (6 values)
       
       this.ctx.strokeStyle = stroke.color;
       this.ctx.globalAlpha = opacity;
@@ -248,15 +256,19 @@ export class CanvasManager {
       
       this.ctx.beginPath();
       
-      for (let i = 0; i < stroke.points.length; i++) {
-        const point = stroke.points[i];
-        const screenPos = this.worldToScreen(point[0], point[1]);
-        const width = point[2] * this.viewport.zoom;
+      // Points are stored as flat array: [x1, y1, w1, x2, y2, w2, ...]
+      for (let i = 0; i < stroke.points.length; i += 3) {
+        const x = stroke.points[i];
+        const y = stroke.points[i + 1];
+        const width = stroke.points[i + 2];
+        
+        const screenPos = this.worldToScreen(x, y);
+        const scaledWidth = width * this.viewport.zoom;
         
         if (i === 0) {
           this.ctx.moveTo(screenPos.x, screenPos.y);
         } else {
-          this.ctx.lineWidth = width;
+          this.ctx.lineWidth = scaledWidth;
           this.ctx.lineTo(screenPos.x, screenPos.y);
         }
       }

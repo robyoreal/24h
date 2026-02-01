@@ -9,6 +9,7 @@ import {
   calculateCurrentInk,
   updateUserRefillTime,
   cleanupTile,
+  subscribeTileUpdates,
   isConfigured 
 } from './services/firebase.service.js';
 import { 
@@ -32,7 +33,8 @@ const state = {
   inkInterval: null,
   inactivityTimer: null,
   isPanning: false,
-  lastMousePos: { x: 0, y: 0 }
+  lastMousePos: { x: 0, y: 0 },
+  tileListeners: new Map() // Track active listeners
 };
 
 // Initialize app
@@ -405,8 +407,8 @@ async function flushStrokes() {
     if (stroke.type === 'text') {
       tileId = getTileId(stroke.position[0], stroke.position[1], TILE_SIZE);
     } else {
-      // Use first point of stroke
-      tileId = getTileId(stroke.points[0][0], stroke.points[0][1], TILE_SIZE);
+      // Use first point of stroke (flat array: [x, y, w, ...])
+      tileId = getTileId(stroke.points[0], stroke.points[1], TILE_SIZE);
     }
     
     if (!strokesByTile[tileId]) {
@@ -440,9 +442,23 @@ async function loadVisibleTiles() {
     // Skip if already loaded
     if (state.canvasManager.tiles.has(tileId)) continue;
     
+    // Load initial tile data
     const tileData = await loadTile(tileId);
     if (tileData) {
       state.canvasManager.addTile(tileId, tileData);
+    }
+    
+    // Subscribe to real-time updates for this tile
+    if (!state.tileListeners.has(tileId)) {
+      const unsubscribe = subscribeTileUpdates(tileId, (updatedTileId, updatedData) => {
+        // Update canvas when tile data changes
+        state.canvasManager.addTile(updatedTileId, updatedData);
+        console.log(`Tile ${updatedTileId} updated in real-time`);
+      });
+      
+      if (unsubscribe) {
+        state.tileListeners.set(tileId, unsubscribe);
+      }
     }
   }
 }

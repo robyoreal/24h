@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, writeBatch, arrayUnion } from 'firebase/firestore';
+import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, writeBatch, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { firebaseConfig } from '../config/firebase.config.js';
 
 let app = null;
@@ -226,6 +226,29 @@ export async function cleanupTile(tileId, maxAge = 24 * 60 * 60 * 1000) {
   } catch (error) {
     console.error('Error cleaning tile:', error);
     return false;
+  }
+}
+
+// Subscribe to real-time tile updates
+export function subscribeTileUpdates(tileId, callback) {
+  if (!isConfigured) return null;
+  
+  try {
+    const tileRef = doc(db, 'wallTiles', tileId);
+    
+    // Set up real-time listener
+    const unsubscribe = onSnapshot(tileRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback(tileId, docSnap.data());
+      }
+    }, (error) => {
+      console.error(`Error listening to ${tileId}:`, error);
+    });
+    
+    return unsubscribe; // Return function to unsubscribe later
+  } catch (error) {
+    console.error('Error setting up tile listener:', error);
+    return null;
   }
 }
 
