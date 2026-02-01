@@ -1,31 +1,31 @@
 import { CanvasManager } from './canvas/CanvasManager.js';
-import { 
-  initFirebase, 
-  getTileId, 
-  getVisibleTileIds, 
-  loadTile, 
+import {
+  initFirebase,
+  getTileId,
+  getVisibleTileIds,
+  loadTile,
   saveStrokes,
   initUserInk,
   calculateCurrentInk,
   updateUserRefillTime,
   cleanupTile,
   subscribeTileUpdates,
-  isConfigured 
+  isConfigured
 } from './services/firebase.service.js';
-import { 
-  GEOLOCATION_API, 
-  TILE_SIZE, 
-  INACTIVITY_TIMEOUT, 
+import {
+  GEOLOCATION_API,
+  TILE_SIZE,
+  INACTIVITY_TIMEOUT,
   MAX_BUFFER_SIZE,
   DEFAULT_STROKE_WIDTH,
-  INK_REFILL_RATE 
+  INK_REFILL_RATE
 } from './config/firebase.config.js';
 
 // Application state
 const state = {
   canvasManager: null,
-  currentTool: 'brush', // 'brush' or 'text'
-  currentColor: '#FFFFFF',
+  currentTool: 'brush', // 'brush', 'text', or 'eraser'
+  currentColor: '#000000',
   currentWidth: DEFAULT_STROKE_WIDTH,
   userIpHash: null,
   userCountry: null,
@@ -34,40 +34,53 @@ const state = {
   inactivityTimer: null,
   isPanning: false,
   lastMousePos: { x: 0, y: 0 },
-  tileListeners: new Map() // Track active listeners
+  tileListeners: new Map(), // Track active listeners
+
+  // New keys for bottom toolbar
+  undoTimer: null,             // timeout ref for auto-hiding undo button
+  undoTimestamp: null,         // Date.now() of last local stroke, used for 60s undo window
+  arrowKeys: { up: false, down: false, left: false, right: false }, // tracks held keys
+  arrowAnimFrame: null,        // requestAnimationFrame ref for smooth pan loop
+  dialDragging: false,         // true while user drags the width dial
+  dialStartY: 0,               // mouseY/touchY at drag start
+  dialStartWidth: 0            // currentWidth at drag start
 };
 
 // Initialize app
 async function init() {
   // Initialize Firebase
   const firebaseReady = initFirebase();
-  
+
   if (!firebaseReady) {
     document.getElementById('firebase-notice').classList.add('show');
   }
-  
+
   // Initialize canvas
   const canvas = document.getElementById('main-canvas');
   state.canvasManager = new CanvasManager(canvas);
-  
+
   // Get user location and IP hash
   await initUser();
-  
+
   // Setup event listeners
-  setupToolbar();
+  setupBottomToolbar();
   setupCanvas();
-  
+  setupKeyboard();
+
+  // Initialize UI state
+  updateColorBtnSwatch();
+
   // Load initial tiles
   if (isConfigured) {
     await loadVisibleTiles();
-    
+
     // Start periodic tile cleanup (when user loads tiles)
     setInterval(() => cleanupVisibleTiles(), 60000); // Every minute
   }
-  
+
   // Start ink refill updater
   startInkUpdater();
-  
+
   console.log('App initialized');
 }
 
@@ -76,19 +89,19 @@ async function initUser() {
   try {
     const response = await fetch(GEOLOCATION_API);
     const data = await response.json();
-    
+
     state.userCountry = data.country_code || 'XX';
-    
+
     // Create simple hash of IP (not secure, just for identification)
     const ip = data.ip || 'anonymous';
     state.userIpHash = await hashString(ip);
-    
+
     console.log('User initialized:', state.userCountry);
-    
+
     // Initialize user ink in Firestore
     if (isConfigured) {
       state.userInk = await initUserInk(state.userIpHash, state.userCountry);
-      updateInkDisplay();
+      updateInkGauge();
     }
   } catch (error) {
     console.error('Failed to get user location:', error);
@@ -106,45 +119,89 @@ async function hashString(str) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Setup toolbar event listeners
-function setupToolbar() {
-  // Tool buttons
-  document.getElementById('brush-tool').addEventListener('click', () => {
-    state.currentTool = 'brush';
-    updateToolButtons();
+// Setup bottom toolbar event listeners
+function setupBottomToolbar() {
+  // --- Tool button & arc ---
+  const toolBtn = document.getElementById('tool-btn');
+  const toolArc = document.getElementById('tool-arc');
+
+  toolBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toolArc.classList.toggle('hidden');
+    // Close color arc if open
+    document.getElementById('color-arc').classList.add('hidden');
   });
-  
-  document.getElementById('text-tool').addEventListener('click', () => {
-    state.currentTool = 'text';
-    updateToolButtons();
+
+  toolArc.querySelectorAll('.arc-btn[data-tool]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.currentTool = btn.dataset.tool;
+      updateToolIcon();
+      updateColorBtnSwatch();
+      toolArc.classList.add('hidden');
+    });
   });
-  
+
+  // --- Color button & arc ---
+  const colorBtn = document.getElementById('color-btn');
+  const colorArc = document.getElementById('color-arc');
+
+  colorBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Do nothing if eraser is active
+    if (state.currentTool === 'eraser') return;
+    colorArc.classList.toggle('hidden');
+    // Close tool arc if open
+    toolArc.classList.add('hidden');
+  });
+
+  colorArc.querySelectorAll('.color-arc-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.currentColor = btn.dataset.color;
+      updateColorBtnSwatch();
+      colorArc.classList.add('hidden');
+    });
+  });
+
+  // --- Width Dial (drag interaction) ---
+  const dial = document.getElementById('width-dial');
+
+  dial.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    state.dialDragging = true;
+    state.dialStartY = e.clientY;
+    state.dialStartWidth = state.currentWidth;
+    document.addEventListener('mousemove', onDialDrag);
+    document.addEventListener('mouseup', onDialDragEnd);
+  });
+
+  dial.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    state.dialDragging = true;
+    state.dialStartY = e.touches[0].clientY;
+    state.dialStartWidth = state.currentWidth;
+    document.addEventListener('touchmove', onDialDrag, { passive: false });
+    document.addEventListener('touchend', onDialDragEnd);
+  }, { passive: false });
+
+  // --- Undo button ---
   document.getElementById('undo-btn').addEventListener('click', () => {
     const removed = state.canvasManager.undoLastStroke();
     if (removed) {
-      // Refund ink
       state.userInk.inkRemaining += removed.inkUsed;
-      updateInkDisplay();
+      updateInkGauge();
+      hideUndoButton();
     }
   });
-  
-  // Stroke width slider
-  const widthSlider = document.getElementById('stroke-width');
-  widthSlider.addEventListener('input', (e) => {
-    state.currentWidth = parseInt(e.target.value);
-    document.getElementById('width-display').textContent = state.currentWidth + 'px';
+
+  // --- Close arcs when clicking canvas ---
+  document.getElementById('canvas-container').addEventListener('mousedown', () => {
+    toolArc.classList.add('hidden');
+    colorArc.classList.add('hidden');
   });
-  
-  // Color palette
-  document.querySelectorAll('.color-swatch').forEach(swatch => {
-    swatch.addEventListener('click', () => {
-      state.currentColor = swatch.dataset.color;
-      document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
-      swatch.classList.add('active');
-    });
-  });
-  
-  // Text modal
+
+  // --- Text modal ---
   document.getElementById('text-submit').addEventListener('click', submitText);
   document.getElementById('text-cancel').addEventListener('click', closeTextModal);
   document.getElementById('text-input').addEventListener('keypress', (e) => {
@@ -152,25 +209,91 @@ function setupToolbar() {
   });
 }
 
-// Update tool button states
-function updateToolButtons() {
-  document.getElementById('brush-tool').classList.toggle('active', state.currentTool === 'brush');
-  document.getElementById('text-tool').classList.toggle('active', state.currentTool === 'text');
+// Dial drag helpers
+function onDialDrag(e) {
+  if (!state.dialDragging) return;
+  e.preventDefault();
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  // Drag UP = wider, drag DOWN = narrower
+  const delta = state.dialStartY - clientY;
+  const newWidth = Math.min(50, Math.max(5, state.dialStartWidth + Math.round(delta * 0.4)));
+  state.currentWidth = newWidth;
+  document.getElementById('width-dial-label').textContent = newWidth;
+}
+
+function onDialDragEnd(e) {
+  state.dialDragging = false;
+  document.removeEventListener('mousemove', onDialDrag);
+  document.removeEventListener('mouseup', onDialDragEnd);
+  document.removeEventListener('touchmove', onDialDrag);
+  document.removeEventListener('touchend', onDialDragEnd);
+}
+
+// UI update helpers
+function updateToolIcon() {
+  // Hide all tool icons, show the one matching state.currentTool
+  document.querySelectorAll('.tool-icon').forEach(icon => icon.classList.remove('active'));
+  document.getElementById('tool-icon-' + state.currentTool).classList.add('active');
+}
+
+function updateColorBtnSwatch() {
+  const swatch = document.getElementById('color-btn-swatch');
+  if (state.currentTool === 'eraser') {
+    swatch.classList.add('eraser-mode');
+    swatch.style.background = '';
+  } else {
+    swatch.classList.remove('eraser-mode');
+    swatch.style.background = state.currentColor;
+  }
+}
+
+function updateInkGauge() {
+  if (!state.userInk) return;
+  const currentInk = calculateCurrentInk(state.userInk, INK_REFILL_RATE);
+  const pct = Math.max(0, Math.min(1, currentInk / 250000));
+
+  // Update arc: circumference = 2 * PI * r = 2 * PI * 18 ≈ 113.097
+  const circumference = 113.097;
+  const arc = document.getElementById('ink-gauge-arc');
+  arc.style.strokeDasharray = circumference;
+  arc.style.strokeDashoffset = circumference * (1 - pct);
+
+  document.getElementById('ink-gauge-label').textContent = Math.round(pct * 100) + '%';
+}
+
+// Undo visibility (60-second window)
+function showUndoButton() {
+  const wrap = document.getElementById('undo-btn-wrap');
+  wrap.classList.remove('hidden');
+  state.undoTimestamp = Date.now();
+
+  // Reset the 60s auto-hide timer
+  clearTimeout(state.undoTimer);
+  state.undoTimer = setTimeout(() => {
+    hideUndoButton();
+  }, 60000);
+}
+
+function hideUndoButton() {
+  document.getElementById('undo-btn-wrap').classList.add('hidden');
+  clearTimeout(state.undoTimer);
+  state.undoTimer = null;
+  state.undoTimestamp = null;
 }
 
 // Setup canvas event listeners
 function setupCanvas() {
   const container = document.getElementById('canvas-container');
-  
+
   // Mouse events
   container.addEventListener('mousedown', handleMouseDown);
   container.addEventListener('mousemove', handleMouseMove);
   container.addEventListener('mouseup', handleMouseUp);
   container.addEventListener('mouseleave', handleMouseUp);
-  
+
   // Wheel for zoom
   container.addEventListener('wheel', handleWheel, { passive: false });
-  
+
   // Touch events for mobile
   container.addEventListener('touchstart', handleTouchStart, { passive: false });
   container.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -182,19 +305,20 @@ function handleMouseDown(e) {
   const rect = e.currentTarget.getBoundingClientRect();
   const screenX = e.clientX - rect.left;
   const screenY = e.clientY - rect.top;
-  
+
   if (e.button === 1 || e.ctrlKey || e.metaKey) {
     // Middle mouse or Ctrl+click = pan
     state.isPanning = true;
     state.lastMousePos = { x: e.clientX, y: e.clientY };
-  } else if (state.currentTool === 'brush') {
+  } else if (state.currentTool === 'brush' || state.currentTool === 'eraser') {
     // Start drawing
     const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
+    const drawColor = state.currentTool === 'eraser' ? '#FFFFFF' : state.currentColor;
     state.canvasManager.startStroke(
-      worldPos.x, 
-      worldPos.y, 
-      state.currentWidth, 
-      state.currentColor,
+      worldPos.x,
+      worldPos.y,
+      state.currentWidth,
+      drawColor,
       state.userCountry
     );
   } else if (state.currentTool === 'text') {
@@ -203,8 +327,6 @@ function handleMouseDown(e) {
     state.textWorldPos = worldPos;
     showTextModal();
   }
-  
-  updatePositionDisplay(screenX, screenY);
 }
 
 // Mouse move handler
@@ -212,7 +334,7 @@ function handleMouseMove(e) {
   const rect = e.currentTarget.getBoundingClientRect();
   const screenX = e.clientX - rect.left;
   const screenY = e.clientY - rect.top;
-  
+
   if (state.isPanning) {
     const dx = e.clientX - state.lastMousePos.x;
     const dy = e.clientY - state.lastMousePos.y;
@@ -221,18 +343,16 @@ function handleMouseMove(e) {
   } else if (state.canvasManager.isDrawing) {
     const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
     const inkCost = state.canvasManager.continueStroke(worldPos.x, worldPos.y, state.currentWidth);
-    
-    // Deduct ink
-    if (state.userInk) {
+
+    // Eraser costs no ink
+    if (state.currentTool !== 'eraser' && state.userInk) {
       state.userInk.inkRemaining -= inkCost;
-      updateInkDisplay();
+      updateInkGauge();
     }
-    
+
     // Reset inactivity timer
     resetInactivityTimer();
   }
-  
-  updatePositionDisplay(screenX, screenY);
 }
 
 // Mouse up handler
@@ -240,8 +360,14 @@ function handleMouseUp(e) {
   if (state.isPanning) {
     state.isPanning = false;
   } else if (state.canvasManager.isDrawing) {
+    // Check if stroke has more than one point before showing undo
+    const hadValidStroke = state.canvasManager.currentStroke &&
+                           state.canvasManager.currentStroke.points.length > 3;
     state.canvasManager.endStroke();
     resetInactivityTimer();
+    if (hadValidStroke) {
+      showUndoButton();
+    }
   }
 }
 
@@ -251,64 +377,119 @@ function handleWheel(e) {
   const rect = e.currentTarget.getBoundingClientRect();
   const centerX = e.clientX - rect.left;
   const centerY = e.clientY - rect.top;
-  
+
   state.canvasManager.zoom(e.deltaY, centerX, centerY);
 }
 
-// Touch handlers (basic support)
-let lastTouch = null;
+// Touch handlers (with pinch zoom + two-finger pan support)
+let lastTouches = [];        // array of touch objects from previous frame
+let touchMode = null;        // 'draw' | 'pan' | 'pinch' | 'text'
 
 function handleTouchStart(e) {
   e.preventDefault();
+  lastTouches = Array.from(e.touches);
+
   if (e.touches.length === 1) {
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
     const screenX = touch.clientX - rect.left;
     const screenY = touch.clientY - rect.top;
-    
-    if (state.currentTool === 'brush') {
+
+    if (state.currentTool === 'brush' || state.currentTool === 'eraser') {
+      touchMode = 'draw';
       const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
-      state.canvasManager.startStroke(
-        worldPos.x, 
-        worldPos.y, 
-        state.currentWidth, 
-        state.currentColor,
-        state.userCountry
-      );
+      const drawColor = state.currentTool === 'eraser' ? '#FFFFFF' : state.currentColor;
+      state.canvasManager.startStroke(worldPos.x, worldPos.y, state.currentWidth, drawColor, state.userCountry);
+    } else if (state.currentTool === 'text') {
+      touchMode = 'text';
+      const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
+      state.textWorldPos = worldPos;
+      showTextModal();
     }
-    
-    lastTouch = touch;
+  } else if (e.touches.length === 2) {
+    // Cancel any in-progress draw stroke if a second finger appears
+    if (state.canvasManager.isDrawing) {
+      state.canvasManager.isDrawing = false;
+      state.canvasManager.currentStroke = null;
+    }
+    touchMode = getPinchOrPan(e.touches);
   }
 }
 
 function handleTouchMove(e) {
   e.preventDefault();
-  if (e.touches.length === 1 && lastTouch) {
+  if (e.touches.length === 1 && touchMode === 'draw') {
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
     const screenX = touch.clientX - rect.left;
     const screenY = touch.clientY - rect.top;
-    
+
     if (state.canvasManager.isDrawing) {
       const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
       const inkCost = state.canvasManager.continueStroke(worldPos.x, worldPos.y, state.currentWidth);
-      
-      if (state.userInk) {
+
+      // Eraser costs no ink
+      if (state.currentTool !== 'eraser' && state.userInk) {
         state.userInk.inkRemaining -= inkCost;
-        updateInkDisplay();
+        updateInkGauge();
       }
     }
-    
-    lastTouch = touch;
+  } else if (e.touches.length === 2) {
+    const t0 = e.touches[0];
+    const t1 = e.touches[1];
+    const l0 = lastTouches[0];
+    const l1 = lastTouches[1];
+    if (!l0 || !l1) { lastTouches = Array.from(e.touches); return; }
+
+    const prevDist = Math.hypot(l1.clientX - l0.clientX, l1.clientY - l0.clientY);
+    const currDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+
+    // Decide: if distance changed more than 2px, treat as pinch zoom
+    if (Math.abs(currDist - prevDist) > 2) {
+      touchMode = 'pinch';
+    }
+
+    if (touchMode === 'pinch') {
+      // Zoom centered on midpoint
+      const midX = (t0.clientX + t1.clientX) / 2;
+      const midY = (t0.clientY + t1.clientY) / 2;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const ratio = currDist / prevDist;
+
+      // Manually zoom: replicate CanvasManager.zoom logic with ratio instead of delta
+      const worldPos = state.canvasManager.screenToWorld(midX - rect.left, midY - rect.top);
+      state.canvasManager.viewport.zoom = Math.max(0.1, Math.min(5, state.canvasManager.viewport.zoom * ratio));
+      state.canvasManager.viewport.x = worldPos.x - (midX - rect.left) / state.canvasManager.viewport.zoom;
+      state.canvasManager.viewport.y = worldPos.y - (midY - rect.top) / state.canvasManager.viewport.zoom;
+      state.canvasManager.render();
+    } else {
+      // Two-finger pan: use midpoint movement
+      touchMode = 'pan';
+      const prevMidX = (l0.clientX + l1.clientX) / 2;
+      const prevMidY = (l0.clientY + l1.clientY) / 2;
+      const currMidX = (t0.clientX + t1.clientX) / 2;
+      const currMidY = (t0.clientY + t1.clientY) / 2;
+      state.canvasManager.pan(currMidX - prevMidX, currMidY - prevMidY);
+    }
   }
+
+  lastTouches = Array.from(e.touches);
 }
 
 function handleTouchEnd(e) {
-  if (state.canvasManager.isDrawing) {
+  if (touchMode === 'draw' && state.canvasManager.isDrawing) {
     state.canvasManager.endStroke();
     resetInactivityTimer();
+    showUndoButton();
   }
-  lastTouch = null;
+  touchMode = null;
+  lastTouches = [];
+}
+
+// Helper: initial guess for two-finger intent
+function getPinchOrPan(touches) {
+  // Default to pan; handleTouchMove will switch to pinch if distance changes
+  return 'pan';
 }
 
 // Show text input modal
@@ -329,12 +510,12 @@ function closeTextModal() {
 function submitText() {
   const input = document.getElementById('text-input');
   const text = input.value.trim();
-  
+
   if (!text || !state.textWorldPos) {
     closeTextModal();
     return;
   }
-  
+
   const fontSize = 24; // Fixed for now
   const inkCost = state.canvasManager.addTextStroke(
     state.textWorldPos.x,
@@ -344,46 +525,85 @@ function submitText() {
     state.currentColor,
     state.userCountry
   );
-  
+
   // Deduct ink
   if (state.userInk) {
     state.userInk.inkRemaining -= inkCost;
-    updateInkDisplay();
+    updateInkGauge();
   }
-  
+
   resetInactivityTimer();
   closeTextModal();
-}
-
-// Update position display
-function updatePositionDisplay(screenX, screenY) {
-  const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
-  document.getElementById('position-display').textContent = 
-    `x: ${Math.floor(worldPos.x)}, y: ${Math.floor(worldPos.y)}`;
-}
-
-// Update ink display
-function updateInkDisplay() {
-  if (!state.userInk) return;
-  
-  const currentInk = calculateCurrentInk(state.userInk, INK_REFILL_RATE);
-  const percentage = (currentInk / 250000) * 100;
-  
-  document.getElementById('ink-fill').style.width = percentage + '%';
-  document.getElementById('ink-text').textContent = currentInk.toLocaleString();
+  showUndoButton();
 }
 
 // Start ink updater (refill over time)
 function startInkUpdater() {
   state.inkInterval = setInterval(() => {
-    updateInkDisplay();
+    updateInkGauge();
   }, 1000); // Update every second
+}
+
+// Keyboard arrow-key pan (smooth, Excel-style)
+function setupKeyboard() {
+  document.addEventListener('keydown', (e) => {
+    // Ignore if user is typing in a text input
+    if (e.target.tagName === 'INPUT') return;
+
+    let moved = false;
+    if (e.key === 'ArrowUp')    { state.arrowKeys.up = true;    moved = true; }
+    if (e.key === 'ArrowDown')  { state.arrowKeys.down = true;  moved = true; }
+    if (e.key === 'ArrowLeft')  { state.arrowKeys.left = true;  moved = true; }
+    if (e.key === 'ArrowRight') { state.arrowKeys.right = true; moved = true; }
+
+    if (moved) {
+      e.preventDefault();
+      if (!state.arrowAnimFrame) startArrowPanLoop();
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowUp')    state.arrowKeys.up = false;
+    if (e.key === 'ArrowDown')  state.arrowKeys.down = false;
+    if (e.key === 'ArrowLeft')  state.arrowKeys.left = false;
+    if (e.key === 'ArrowRight') state.arrowKeys.right = false;
+
+    // If no arrow keys held, stop the loop
+    if (!state.arrowKeys.up && !state.arrowKeys.down && !state.arrowKeys.left && !state.arrowKeys.right) {
+      cancelAnimationFrame(state.arrowAnimFrame);
+      state.arrowAnimFrame = null;
+    }
+  });
+}
+
+function startArrowPanLoop() {
+  const SPEED = 4; // pixels per frame in world-space
+
+  function loop() {
+    let dx = 0, dy = 0;
+    if (state.arrowKeys.up)    dy = -SPEED;
+    if (state.arrowKeys.down)  dy =  SPEED;
+    if (state.arrowKeys.left)  dx = -SPEED;
+    if (state.arrowKeys.right) dx =  SPEED;
+
+    if (dx !== 0 || dy !== 0) {
+      // pan() expects screen-space delta, but we want world-space movement,
+      // so we multiply by zoom to convert back
+      state.canvasManager.pan(dx * state.canvasManager.viewport.zoom, dy * state.canvasManager.viewport.zoom);
+      // Reload tiles if viewport moved
+      loadVisibleTiles();
+    }
+
+    state.arrowAnimFrame = requestAnimationFrame(loop);
+  }
+
+  state.arrowAnimFrame = requestAnimationFrame(loop);
 }
 
 // Reset inactivity timer
 function resetInactivityTimer() {
   clearTimeout(state.inactivityTimer);
-  
+
   state.inactivityTimer = setTimeout(() => {
     flushStrokes();
   }, INACTIVITY_TIMEOUT);
@@ -392,41 +612,42 @@ function resetInactivityTimer() {
 // Flush strokes to Firebase
 async function flushStrokes() {
   if (!isConfigured) return;
-  
+
   const localStrokes = state.canvasManager.getLocalStrokes();
   if (localStrokes.length === 0) return;
-  
+
   console.log(`Flushing ${localStrokes.length} strokes...`);
-  
+
   // Group strokes by tile
   const strokesByTile = {};
-  
+
   for (const stroke of localStrokes) {
     let tileId;
-    
+
     if (stroke.type === 'text') {
       tileId = getTileId(stroke.position[0], stroke.position[1], TILE_SIZE);
     } else {
       // Use first point of stroke (flat array: [x, y, w, ...])
       tileId = getTileId(stroke.points[0], stroke.points[1], TILE_SIZE);
     }
-    
+
     if (!strokesByTile[tileId]) {
       strokesByTile[tileId] = [];
     }
-    
+
     strokesByTile[tileId].push(stroke);
   }
-  
+
   // Calculate total ink used
   const totalInkUsed = localStrokes.reduce((sum, stroke) => sum + stroke.inkUsed, 0);
-  
+
   // Save to Firebase
   const success = await saveStrokes(strokesByTile, state.userIpHash, totalInkUsed);
-  
+
   if (success) {
     state.canvasManager.clearLocalStrokes();
     await updateUserRefillTime(state.userIpHash);
+    updateInkGauge();
     console.log('Strokes saved successfully');
   } else {
     console.error('Failed to save strokes');
@@ -437,17 +658,17 @@ async function flushStrokes() {
 async function loadVisibleTiles() {
   const viewport = state.canvasManager.getViewport();
   const tileIds = getVisibleTileIds(viewport, TILE_SIZE);
-  
+
   for (const tileId of tileIds) {
     // Skip if already loaded
     if (state.canvasManager.tiles.has(tileId)) continue;
-    
+
     // Load initial tile data
     const tileData = await loadTile(tileId);
     if (tileData) {
       state.canvasManager.addTile(tileId, tileData);
     }
-    
+
     // Subscribe to real-time updates for this tile
     if (!state.tileListeners.has(tileId)) {
       const unsubscribe = subscribeTileUpdates(tileId, (updatedTileId, updatedData) => {
@@ -455,7 +676,7 @@ async function loadVisibleTiles() {
         state.canvasManager.addTile(updatedTileId, updatedData);
         console.log(`Tile ${updatedTileId} updated in real-time`);
       });
-      
+
       if (unsubscribe) {
         state.tileListeners.set(tileId, unsubscribe);
       }
@@ -467,7 +688,7 @@ async function loadVisibleTiles() {
 async function cleanupVisibleTiles() {
   const viewport = state.canvasManager.getViewport();
   const tileIds = getVisibleTileIds(viewport, TILE_SIZE);
-  
+
   for (const tileId of tileIds) {
     await cleanupTile(tileId);
   }

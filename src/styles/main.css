@@ -11,130 +11,174 @@ body {
   color: #fff;
 }
 
-#toolbar {
+/* ===== Bottom-Left Toolbar ===== */
+#bottom-toolbar {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  background: rgba(40, 40, 40, 0.95);
-  padding: 12px 20px;
+  bottom: 24px;
+  left: 24px;
   display: flex;
-  gap: 24px;
+  flex-direction: column;
+  gap: 12px;
   align-items: center;
-  border-bottom: 2px solid #333;
   z-index: 1000;
-  flex-wrap: wrap;
 }
 
-.tool-group {
+/* Each button wrapper is relative so arc menus can position absolutely */
+#tool-btn-wrap,
+#width-dial-wrap,
+#color-btn-wrap,
+#ink-gauge-wrap,
+#undo-btn-wrap {
+  position: relative;
+}
+
+/* Base circle button */
+.circle-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(30, 30, 30, 0.88);
+  border: 2px solid rgba(100, 100, 100, 0.5);
+  color: #fff;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.circle-btn:hover {
+  background: rgba(50, 50, 50, 0.92);
+  border-color: rgba(140, 140, 140, 0.6);
+}
+
+.circle-btn:active {
+  transform: scale(0.92);
+}
+
+/* ---- Tool Icon Switching ---- */
+.tool-icon {
+  position: absolute;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.tool-icon.active {
+  opacity: 1;
+  position: relative; /* only the active one participates in layout */
+}
+
+/* ---- Arc Menus ---- */
+.arc-menu {
+  position: absolute;
+  left: 56px; /* to the right of the button */
+  bottom: 0;  /* aligned to bottom of parent */
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   align-items: center;
 }
 
-.tool-btn {
-  background: #2a2a2a;
-  border: 2px solid #444;
+.arc-menu.hidden {
+  display: none;
+}
+
+.arc-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(30, 30, 30, 0.92);
+  border: 2px solid rgba(100, 100, 100, 0.5);
   color: #fff;
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s;
+  backdrop-filter: blur(6px);
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  touch-action: manipulation;
 }
 
-.tool-btn:hover {
-  background: #3a3a3a;
-  border-color: #666;
-}
-
-.tool-btn.active {
-  background: #4a9eff;
+.arc-btn:hover {
+  background: rgba(60, 60, 60, 0.95);
   border-color: #4a9eff;
 }
 
-.tool-btn svg {
-  display: block;
+.arc-btn:active {
+  transform: scale(0.88);
 }
 
-#stroke-width {
-  width: 100px;
-  cursor: pointer;
+/* ---- Color Dot inside arc buttons ---- */
+.color-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
 }
 
-#width-display {
-  min-width: 40px;
-  font-size: 14px;
-  color: #aaa;
+/* ---- Color Button Swatch (shows current color) ---- */
+#color-btn-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.3);
+  /* background set dynamically via JS */
 }
 
-#color-palette {
-  display: flex;
-  gap: 6px;
+/* When eraser is active, color button shows checkerboard */
+#color-btn-swatch.eraser-mode {
+  background-image:
+    repeating-conic-gradient(#aaa 0% 25%, transparent 0% 50%);
+  background-size: 12px 12px;
+  background-color: transparent;
 }
 
-.color-swatch {
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  cursor: pointer;
-  border: 2px solid transparent;
-  transition: transform 0.2s;
-}
-
-.color-swatch:hover {
-  transform: scale(1.1);
-}
-
-.color-swatch.active {
-  border: 2px solid #4a9eff;
-  transform: scale(1.15);
-}
-
-.ink-meter-container {
-  margin-left: auto;
-}
-
-#ink-meter {
-  position: relative;
-  width: 150px;
-  height: 24px;
-  background: #2a2a2a;
-  border: 2px solid #444;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-#ink-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background: linear-gradient(90deg, #4a9eff, #33ff99);
-  width: 100%;
-  transition: width 0.3s;
-}
-
-#ink-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 11px;
-  font-weight: bold;
+/* ---- Width Dial ---- */
+#width-dial-label {
+  font-size: 13px;
+  font-weight: 600;
   color: #fff;
-  text-shadow: 0 0 4px rgba(0,0,0,0.8);
-  z-index: 1;
+  pointer-events: none;
 }
 
-#position-display {
-  font-size: 12px;
+/* ---- Ink Gauge ---- */
+.ink-gauge-bg {
+  fill: none;
+  stroke: rgba(60, 60, 60, 0.6);
+  stroke-width: 4;
+}
+
+.ink-gauge-fill {
+  fill: none;
+  stroke: #4a9eff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  /* Rotate so the arc starts at 12 o'clock */
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+#ink-gauge-label {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 700;
   color: #aaa;
-  font-family: 'Courier New', monospace;
+  pointer-events: none;
 }
 
+/* ---- Undo Button ---- */
+#undo-btn-wrap.hidden {
+  display: none;
+}
+
+/* ===== Canvas container (no toolbar offset now) ===== */
 #canvas-container {
   position: fixed;
-  top: 60px;
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;
