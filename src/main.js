@@ -43,8 +43,12 @@ const state = {
   arrowAnimFrame: null,        // requestAnimationFrame ref for smooth pan loop
   dialDragging: false,         // true while user drags the width dial
   dialStartY: 0,               // mouseY/touchY at drag start
-  dialStartWidth: 0            // currentWidth at drag start
+  dialStartWidth: 0,           // currentWidth at drag start
+  currentStrokeWasFlushed: false // tracks if current stroke was already flushed mid-draw
 };
+
+// Make state accessible to CanvasManager
+window.appState = state;
 
 // Initialize app
 async function init() {
@@ -619,9 +623,43 @@ async function flushStrokes() {
   if (!isConfigured) return;
 
   const localStrokes = state.canvasManager.getLocalStrokes();
+
+  // SPECIAL CASE: If currently drawing, flush in-progress stroke but keep drawing active
+  if (state.canvasManager.isDrawing && state.canvasManager.currentStroke) {
+    console.log('Flushing in-progress stroke (user still drawing)...');
+
+    // Clone the current stroke and save it
+    const strokeToSave = {
+      points: [...state.canvasManager.currentStroke.points],
+      color: state.canvasManager.currentStroke.color,
+      timestamp: state.canvasManager.currentStroke.timestamp,
+      country: state.canvasManager.currentStroke.country,
+      inkUsed: state.canvasManager.currentStroke.inkUsed
+    };
+
+    // Group by tile
+    const strokesByTile = {};
+    const tileId = getTileId(strokeToSave.points[0], strokeToSave.points[1], TILE_SIZE);
+    strokesByTile[tileId] = [strokeToSave];
+
+    // Save to Firebase
+    const success = await saveStrokes(strokesByTile, state.userIpHash, strokeToSave.inkUsed);
+
+    if (success) {
+      // Mark that this stroke was already saved to Firebase
+      state.currentStrokeWasFlushed = true;
+      console.log('In-progress stroke saved. User continues drawing...');
+    }
+
+    // Reset timer for next auto-flush cycle
+    resetInactivityTimer();
+    return;
+  }
+
+  // NORMAL CASE: Flush completed local strokes
   if (localStrokes.length === 0) return;
 
-  console.log(`Flushing ${localStrokes.length} strokes...`);
+  console.log(`Flushing ${localStrokes.length} completed stroke(s)...`);
 
   // Group strokes by tile
   const strokesByTile = {};
@@ -652,7 +690,6 @@ async function flushStrokes() {
   if (success) {
     state.canvasManager.clearLocalStrokes();
     await updateUserRefillTime(state.userIpHash);
-    updateInkGauge();
     console.log('Strokes saved successfully');
   } else {
     console.error('Failed to save strokes');

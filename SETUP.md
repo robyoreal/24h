@@ -1,6 +1,6 @@
 # 🚀 QUICK SETUP GUIDE
 
-Follow these steps to get your Ephemeral Wall running in ~10 minutes:
+Follow these steps to get your 24 Hours Wall running in ~10 minutes:
 
 ## Step 1: Install Dependencies
 ```bash
@@ -18,7 +18,7 @@ npm install
 
 ### 2.2 Add Web App
 1. In your Firebase project, click the web icon `</>`
-2. Register app (nickname: "Ephemeral Wall")
+2. Register app (nickname: "24 Hours Wall")
 3. **Copy the firebaseConfig object**
 
 ### 2.3 Update Configuration
