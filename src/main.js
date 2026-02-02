@@ -580,20 +580,22 @@ function setupKeyboard() {
 }
 
 function startArrowPanLoop() {
-  const SPEED = 4; // pixels per frame in world-space
+  const SPEED_PCT = 0.02; // 2% of screen per frame
 
   function loop() {
+    // Calculate speed based on screen size
+    const speedX = window.innerWidth * SPEED_PCT;
+    const speedY = window.innerHeight * SPEED_PCT;
+
     let dx = 0, dy = 0;
-    if (state.arrowKeys.up)    dy = -SPEED;
-    if (state.arrowKeys.down)  dy =  SPEED;
-    if (state.arrowKeys.left)  dx = -SPEED;
-    if (state.arrowKeys.right) dx =  SPEED;
+    // Reversed: arrow direction = view scroll direction (content moves opposite)
+    if (state.arrowKeys.up)    dy =  speedY;
+    if (state.arrowKeys.down)  dy = -speedY;
+    if (state.arrowKeys.left)  dx =  speedX;
+    if (state.arrowKeys.right) dx = -speedX;
 
     if (dx !== 0 || dy !== 0) {
-      // pan() expects screen-space delta, but we want world-space movement,
-      // so we multiply by zoom to convert back
-      state.canvasManager.pan(dx * state.canvasManager.viewport.zoom, dy * state.canvasManager.viewport.zoom);
-      // Reload tiles if viewport moved
+      state.canvasManager.pan(dx, dy);
       loadVisibleTiles();
     }
 
