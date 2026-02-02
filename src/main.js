@@ -383,7 +383,7 @@ function handleWheel(e) {
 
 // Touch handlers (with pinch zoom + two-finger pan support)
 let lastTouches = [];        // array of touch objects from previous frame
-let touchMode = null;        // 'draw' | 'pan' | 'pinch' | 'text'
+let touchMode = null;        // 'draw' | 'gesture' | 'text'
 
 function handleTouchStart(e) {
   e.preventDefault();
@@ -412,7 +412,7 @@ function handleTouchStart(e) {
       state.canvasManager.isDrawing = false;
       state.canvasManager.currentStroke = null;
     }
-    touchMode = getPinchOrPan(e.touches);
+    touchMode = 'gesture';
   }
 }
 
@@ -434,43 +434,50 @@ function handleTouchMove(e) {
         updateInkGauge();
       }
     }
-  } else if (e.touches.length === 2) {
+  } else if (e.touches.length === 2 && touchMode === 'gesture') {
     const t0 = e.touches[0];
     const t1 = e.touches[1];
     const l0 = lastTouches[0];
     const l1 = lastTouches[1];
     if (!l0 || !l1) { lastTouches = Array.from(e.touches); return; }
 
+    const rect = e.currentTarget.getBoundingClientRect();
+
+    // Calculate midpoints
+    const prevMidX = (l0.clientX + l1.clientX) / 2;
+    const prevMidY = (l0.clientY + l1.clientY) / 2;
+    const currMidX = (t0.clientX + t1.clientX) / 2;
+    const currMidY = (t0.clientY + t1.clientY) / 2;
+
+    // Calculate distances for zoom
     const prevDist = Math.hypot(l1.clientX - l0.clientX, l1.clientY - l0.clientY);
     const currDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
 
-    // Decide: if distance changed more than 2px, treat as pinch zoom
-    if (Math.abs(currDist - prevDist) > 2) {
-      touchMode = 'pinch';
-    }
+    // Simultaneous zoom + pan (standard mobile behavior)
+    // 1. First, apply pan by moving the midpoint
+    const panDx = currMidX - prevMidX;
+    const panDy = currMidY - prevMidY;
 
-    if (touchMode === 'pinch') {
-      // Zoom centered on midpoint
-      const midX = (t0.clientX + t1.clientX) / 2;
-      const midY = (t0.clientY + t1.clientY) / 2;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const ratio = currDist / prevDist;
+    // 2. Then apply zoom centered on the current midpoint
+    const ratio = prevDist > 0 ? currDist / prevDist : 1;
 
-      // Manually zoom: replicate CanvasManager.zoom logic with ratio instead of delta
-      const worldPos = state.canvasManager.screenToWorld(midX - rect.left, midY - rect.top);
+    // Get world position at midpoint before transformations
+    const screenMidX = currMidX - rect.left;
+    const screenMidY = currMidY - rect.top;
+
+    // Apply pan
+    state.canvasManager.viewport.x -= panDx / state.canvasManager.viewport.zoom;
+    state.canvasManager.viewport.y -= panDy / state.canvasManager.viewport.zoom;
+
+    // Apply zoom centered on midpoint
+    if (Math.abs(ratio - 1) > 0.001) {
+      const worldPos = state.canvasManager.screenToWorld(screenMidX, screenMidY);
       state.canvasManager.viewport.zoom = Math.max(0.1, Math.min(5, state.canvasManager.viewport.zoom * ratio));
-      state.canvasManager.viewport.x = worldPos.x - (midX - rect.left) / state.canvasManager.viewport.zoom;
-      state.canvasManager.viewport.y = worldPos.y - (midY - rect.top) / state.canvasManager.viewport.zoom;
-      state.canvasManager.render();
-    } else {
-      // Two-finger pan: use midpoint movement
-      touchMode = 'pan';
-      const prevMidX = (l0.clientX + l1.clientX) / 2;
-      const prevMidY = (l0.clientY + l1.clientY) / 2;
-      const currMidX = (t0.clientX + t1.clientX) / 2;
-      const currMidY = (t0.clientY + t1.clientY) / 2;
-      state.canvasManager.pan(currMidX - prevMidX, currMidY - prevMidY);
+      state.canvasManager.viewport.x = worldPos.x - screenMidX / state.canvasManager.viewport.zoom;
+      state.canvasManager.viewport.y = worldPos.y - screenMidY / state.canvasManager.viewport.zoom;
     }
+
+    state.canvasManager.render();
   }
 
   lastTouches = Array.from(e.touches);
@@ -486,11 +493,7 @@ function handleTouchEnd(e) {
   lastTouches = [];
 }
 
-// Helper: initial guess for two-finger intent
-function getPinchOrPan(touches) {
-  // Default to pan; handleTouchMove will switch to pinch if distance changes
-  return 'pan';
-}
+// Helper removed - no longer needed since we always do both
 
 // Show text input modal
 function showTextModal() {
