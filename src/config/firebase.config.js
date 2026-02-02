@@ -1,21 +1,23 @@
 // Firebase Configuration
-// 
+//
 // TO SET UP:
-// 1. Go to https://console.firebase.google.com/
-// 2. Create a new project (or use existing)
-// 3. Add a web app to your project
-// 4. Copy the config object below
-// 5. Enable Firestore Database (in Build > Firestore Database)
-// 6. Set Firestore rules to allow read/write (see firestore.rules file)
+// 1. Copy .env.example to .env
+// 2. Fill in your Firebase config values from Firebase Console
+// 3. Go to https://console.firebase.google.com/
+// 4. Create a new project (or use existing)
+// 5. Add a web app to your project
+// 6. Copy the config values to your .env file
+// 7. Enable Firestore Database (in Build > Firestore Database)
+// 8. Set Firestore rules to allow read/write (see firestore.rules file)
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyC3jiPltFvkkOn_W67-a_aORi2m3ugC6Pc",
-  authDomain: "hwall-b6237.firebaseapp.com",
-  projectId: "hwall-b6237",
-  storageBucket: "hwall-b6237.firebasestorage.app",
-  messagingSenderId: "419476940811",
-  appId: "1:419476940811:web:10227984c27fccaf1cbf0e",
-  measurementId: "G-9BDQM6QBWJ"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || ''
 };
 
 // IP Geolocation API configuration
