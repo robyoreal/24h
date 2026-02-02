@@ -7,56 +7,83 @@
   <link rel="stylesheet" href="/src/styles/main.css">
 </head>
 <body>
-  <!-- Toolbar -->
-  <div id="toolbar">
-    <div class="tool-group">
-      <button id="brush-tool" class="tool-btn active" title="Brush">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Bottom-Left Toolbar -->
+  <div id="bottom-toolbar">
+
+    <!-- Tool Button (brush / text / eraser selector) -->
+    <div id="tool-btn-wrap">
+      <button id="tool-btn" class="circle-btn">
+        <!-- Icon swaps based on active tool. Default: brush -->
+        <svg id="tool-icon-brush" class="tool-icon active" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 2l9 9-9 9-9-9 9-9z"/>
         </svg>
-      </button>
-      <button id="text-tool" class="tool-btn" title="Text">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <text x="6" y="18" font-size="16" font-weight="bold">T</text>
+        <svg id="tool-icon-text" class="tool-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <text x="5" y="18" font-size="16" font-weight="bold" fill="currentColor" stroke="none">T</text>
+        </svg>
+        <svg id="tool-icon-eraser" class="tool-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="10" width="18" height="8" rx="2" ry="2"/>
+          <line x1="9" y1="10" x2="6" y2="18"/>
         </svg>
       </button>
-      <button id="undo-btn" class="tool-btn" title="Undo">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <!-- Arc menu (hidden by default, shown on tool-btn click) -->
+      <div id="tool-arc" class="arc-menu hidden">
+        <button class="arc-btn" data-tool="brush">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l9 9-9 9-9-9 9-9z"/></svg>
+        </button>
+        <button class="arc-btn" data-tool="text">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><text x="5" y="18" font-size="16" font-weight="bold" fill="currentColor" stroke="none">T</text></svg>
+        </button>
+        <button class="arc-btn" data-tool="eraser">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="10" width="18" height="8" rx="2" ry="2"/><line x1="9" y1="10" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Width Dial -->
+    <div id="width-dial-wrap">
+      <div id="width-dial" class="circle-btn" title="Drag to adjust width">
+        <span id="width-dial-label">10</span>
+      </div>
+    </div>
+
+    <!-- Color Button -->
+    <div id="color-btn-wrap">
+      <button id="color-btn" class="circle-btn">
+        <div id="color-btn-swatch"></div><!-- background color set via JS -->
+      </button>
+      <!-- Color arc menu -->
+      <div id="color-arc" class="arc-menu hidden">
+        <button class="arc-btn color-arc-btn" data-color="#000000"><div class="color-dot" style="background:#000000"></div></button>
+        <button class="arc-btn color-arc-btn" data-color="#FF5733"><div class="color-dot" style="background:#FF5733"></div></button>
+        <button class="arc-btn color-arc-btn" data-color="#33FF57"><div class="color-dot" style="background:#33FF57"></div></button>
+        <button class="arc-btn color-arc-btn" data-color="#3357FF"><div class="color-dot" style="background:#3357FF"></div></button>
+        <button class="arc-btn color-arc-btn" data-color="#FFFF33"><div class="color-dot" style="background:#FFFF33"></div></button>
+        <button class="arc-btn color-arc-btn" data-color="#FF33FF"><div class="color-dot" style="background:#FF33FF"></div></button>
+        <button class="arc-btn color-arc-btn" data-color="#33FFFF"><div class="color-dot" style="background:#33FFFF"></div></button>
+        <button class="arc-btn color-arc-btn" data-color="#FFFFFF"><div class="color-dot" style="background:#FFFFFF; border:1px solid #999"></div></button>
+      </div>
+    </div>
+
+    <!-- Ink Gauge (circular) -->
+    <div id="ink-gauge-wrap">
+      <div id="ink-gauge" class="circle-btn" title="Ink remaining">
+        <svg id="ink-gauge-svg" width="44" height="44" viewBox="0 0 44 44">
+          <circle class="ink-gauge-bg" cx="22" cy="22" r="18" />
+          <circle id="ink-gauge-arc" class="ink-gauge-fill" cx="22" cy="22" r="18" />
+        </svg>
+        <span id="ink-gauge-label">100%</span>
+      </div>
+    </div>
+
+    <!-- Undo Button (conditionally visible) -->
+    <div id="undo-btn-wrap" class="hidden">
+      <button id="undo-btn" class="circle-btn" title="Undo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 7v6h6M3 13a9 9 0 1 0 2-5.5"/>
         </svg>
       </button>
     </div>
 
-    <div class="tool-group">
-      <label>Width:</label>
-      <input type="range" id="stroke-width" min="5" max="50" value="10" step="1">
-      <span id="width-display">10px</span>
-    </div>
-
-    <div class="tool-group">
-      <div id="color-palette">
-        <div class="color-swatch active" data-color="#000000" style="background: #000000;"></div>
-        <div class="color-swatch" data-color="#FF5733" style="background: #FF5733;"></div>
-        <div class="color-swatch" data-color="#33FF57" style="background: #33FF57;"></div>
-        <div class="color-swatch" data-color="#3357FF" style="background: #3357FF;"></div>
-        <div class="color-swatch" data-color="#FFFF33" style="background: #FFFF33;"></div>
-        <div class="color-swatch" data-color="#FF33FF" style="background: #FF33FF;"></div>
-        <div class="color-swatch" data-color="#33FFFF" style="background: #33FFFF;"></div>
-        <div class="color-swatch" data-color="#FFFFFF" style="background: #FFFFFF; border: 2px solid #333;"></div>
-      </div>
-    </div>
-
-    <div class="tool-group ink-meter-container">
-      <label>Ink:</label>
-      <div id="ink-meter">
-        <div id="ink-fill"></div>
-        <span id="ink-text">250,000</span>
-      </div>
-    </div>
-
-    <div class="tool-group">
-      <span id="position-display">x: 0, y: 0</span>
-    </div>
   </div>
 
   <!-- Canvas Container -->

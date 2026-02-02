@@ -33,7 +33,7 @@ export class CanvasManager {
   
   resizeCanvas() {
     this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight - 60; // Account for toolbar
+    this.canvas.height = window.innerHeight;
     this.render();
   }
   
