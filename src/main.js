@@ -18,14 +18,15 @@ import {
   INACTIVITY_TIMEOUT,
   MAX_BUFFER_SIZE,
   DEFAULT_STROKE_WIDTH,
-  INK_REFILL_RATE
+  INK_REFILL_RATE,
+  COLOR_PALETTE
 } from './config/firebase.config.js';
 
 // Application state
 const state = {
   canvasManager: null,
   currentTool: 'brush', // 'brush', 'text', or 'eraser'
-  currentColor: '#000000',
+  currentColor: null, // Set by initColorPalette()
   currentWidth: DEFAULT_STROKE_WIDTH,
   userIpHash: null,
   userCountry: null,
@@ -150,6 +151,36 @@ function setupBottomToolbar() {
   const colorBtn = document.getElementById('color-btn');
   const colorArc = document.getElementById('color-arc');
 
+  // Generate color arc buttons from COLOR_PALETTE
+  COLOR_PALETTE.forEach((color, index) => {
+    const btn = document.createElement('button');
+    btn.className = 'arc-btn color-arc-btn';
+    btn.dataset.color = color;
+
+    const dot = document.createElement('div');
+    dot.className = 'color-dot';
+    dot.style.background = color;
+
+    // Last color (white) needs border for visibility
+    if (index === COLOR_PALETTE.length - 1) {
+      dot.style.border = '1px solid #999';
+    }
+
+    btn.appendChild(dot);
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.currentColor = color;
+      updateColorBtnSwatch();
+      colorArc.classList.add('hidden');
+    });
+
+    colorArc.appendChild(btn);
+  });
+
+  // Set initial color (first in palette)
+  state.currentColor = COLOR_PALETTE[0];
+
   colorBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     // Do nothing if eraser is active
@@ -157,15 +188,6 @@ function setupBottomToolbar() {
     colorArc.classList.toggle('hidden');
     // Close tool arc if open
     toolArc.classList.add('hidden');
-  });
-
-  colorArc.querySelectorAll('.color-arc-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      state.currentColor = btn.dataset.color;
-      updateColorBtnSwatch();
-      colorArc.classList.add('hidden');
-    });
   });
 
   // --- Width Dial (drag interaction) ---
