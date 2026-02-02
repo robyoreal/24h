@@ -131,10 +131,22 @@ export class CanvasManager {
   // End stroke
   endStroke() {
     if (this.currentStroke && this.currentStroke.points.length > 3) {
-      this.localStrokes.push(this.currentStroke);
+      // Only add to localStrokes if it wasn't already flushed during drawing
+      // (if it was flushed, it's already in Firestore — don't duplicate)
+      if (!window.appState?.currentStrokeWasFlushed) {
+        this.localStrokes.push(this.currentStroke);
+      } else {
+        console.log('Stroke already flushed mid-draw, skipping duplicate save');
+      }
     }
+
     this.isDrawing = false;
     this.currentStroke = null;
+
+    // Reset flush flag for next stroke
+    if (window.appState) {
+      window.appState.currentStrokeWasFlushed = false;
+    }
   }
   
   // Add text stroke

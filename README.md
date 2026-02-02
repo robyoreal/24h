@@ -1,4 +1,4 @@
-# Ephemeral Wall 🎨
+# 24 Hours Wall 🎨
 
 A collaborative, infinite canvas where messages and drawings fade away over 24 hours. To keep something visible, you must continuously rewrite it - just like chalk on a wall.
 
