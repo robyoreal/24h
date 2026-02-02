@@ -36,16 +36,16 @@ export const MIN_STROKE_WIDTH = 5;
 export const MAX_STROKE_WIDTH = 50;
 export const DEFAULT_STROKE_WIDTH = 10;
 
-// Colors
+// Colors - SINGLE SOURCE OF TRUTH
 export const COLOR_PALETTE = [
-  '#FFFFFF', // white
+  '#000000', // black (default)
   '#FF5733', // red
   '#33FF57', // green
   '#3357FF', // blue
   '#FFFF33', // yellow
   '#FF33FF', // magenta
   '#33FFFF', // cyan
-  '#000000'  // black
+  '#FFFFFF'  // white (always last - needs border)
 ];
 
 // Buffer settings
