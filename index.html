@@ -96,6 +96,9 @@
   <!-- Text Input Modal (hidden by default) -->
   <div id="text-input-modal" class="hidden">
     <div class="modal-content">
+      <select id="text-font-select" class="text-font-select">
+        <!-- Options populated dynamically from admin config -->
+      </select>
       <input type="text" id="text-input" placeholder="Type your message..." maxlength="100">
       <div class="modal-buttons">
         <button id="text-submit">Add</button>
@@ -108,6 +111,201 @@
   <div id="firebase-notice" class="notice">
     ⚠️ Firebase not configured. See <code>src/config/firebase.config.js</code>
   </div>
+
+  <!-- Admin Panel (hidden by default) -->
+  <div id="admin-panel" class="admin-panel hidden">
+    <div class="admin-content">
+
+      <!-- Header -->
+      <div class="admin-header">
+        <h2>⚙️ Admin Panel</h2>
+        <button id="admin-close" class="admin-close-btn">✕</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="stats">Stats</button>
+        <button class="admin-tab" data-tab="config">Config</button>
+        <button class="admin-tab" data-tab="users">Users</button>
+        <button class="admin-tab" data-tab="data">Data</button>
+      </div>
+
+      <!-- Tab: Stats -->
+      <div id="admin-tab-stats" class="admin-tab-content active">
+        <h3>System Stats</h3>
+        <div class="admin-stat-grid">
+          <div class="admin-stat-card">
+            <div class="admin-stat-label">Total Users</div>
+            <div class="admin-stat-value" id="stat-total-users">—</div>
+          </div>
+          <div class="admin-stat-card">
+            <div class="admin-stat-label">Active Tiles</div>
+            <div class="admin-stat-value" id="stat-active-tiles">—</div>
+          </div>
+          <div class="admin-stat-card">
+            <div class="admin-stat-label">Total Strokes</div>
+            <div class="admin-stat-value" id="stat-total-strokes">—</div>
+          </div>
+        </div>
+        <button id="admin-refresh-stats" class="admin-btn">🔄 Refresh Stats</button>
+      </div>
+
+      <!-- Tab: Config -->
+      <div id="admin-tab-config" class="admin-tab-content">
+        <h3>App Configuration</h3>
+        <div class="admin-form">
+          <label>
+            Max Ink Per User
+            <input type="number" id="config-max-ink" value="250000" step="1000">
+          </label>
+          <label>
+            Ink Refill Rate (per hour)
+            <input type="number" id="config-refill-rate" value="10000" step="100">
+          </label>
+          <label>
+            Fade Duration (hours)
+            <input type="number" id="config-fade-duration" value="24" step="1">
+          </label>
+          <label>
+            Inactivity Timeout (seconds)
+            <input type="number" id="config-inactivity" value="10" step="1">
+          </label>
+          <label>
+            <input type="checkbox" id="config-maintenance-mode">
+            Maintenance Mode (disable drawing)
+          </label>
+          <label>
+            <input type="checkbox" id="config-allow-text" checked>
+            Allow Text Tool
+          </label>
+          <label>
+            <input type="checkbox" id="config-allow-eraser" checked>
+            Allow Eraser Tool
+          </label>
+        </div>
+
+        <!-- Color Palette Manager -->
+        <div class="admin-section">
+          <h4>🎨 Color Palette</h4>
+          <div id="admin-color-palette" class="admin-color-palette">
+            <!-- Color items generated dynamically -->
+          </div>
+          <div class="admin-color-controls">
+            <button id="admin-add-color" class="admin-btn">➕ Add Color</button>
+            <button id="admin-reset-colors" class="admin-btn">🔄 Reset to Default</button>
+          </div>
+          <p class="admin-note">💡 Click color to edit • Click ✕ to remove • First color = default • Last color should be light (white recommended)</p>
+        </div>
+
+        <!-- Font Manager -->
+        <div class="admin-section">
+          <h4>🔤 Available Fonts</h4>
+          <div id="admin-font-list" class="admin-font-list">
+            <!-- Font items generated dynamically -->
+          </div>
+          <div class="admin-font-controls">
+            <button id="admin-add-font" class="admin-btn">➕ Add Font</button>
+            <button id="admin-reset-fonts" class="admin-btn">🔄 Reset to Default</button>
+          </div>
+          <p class="admin-note">💡 Click font to edit • Click ✕ to remove • First font = default for text tool</p>
+        </div>
+
+        <button id="admin-save-config" class="admin-btn admin-btn-primary">💾 Save All Changes</button>
+        <p class="admin-note">⚠️ Changes apply immediately. Users must refresh to see updates.</p>
+      </div>
+
+      <!-- Tab: Users -->
+      <div id="admin-tab-users" class="admin-tab-content">
+        <h3>User Management</h3>
+        <div class="admin-search">
+          <input type="text" id="admin-user-search" placeholder="Search by IP hash or country...">
+          <button id="admin-search-users" class="admin-btn">🔍 Search</button>
+        </div>
+        <div id="admin-user-list" class="admin-user-list">
+          <p class="admin-placeholder">Enter IP hash or country code to search</p>
+        </div>
+      </div>
+
+      <!-- Tab: Data -->
+      <div id="admin-tab-data" class="admin-tab-content">
+        <h3>Data Management</h3>
+        <div class="admin-danger-zone">
+          <h4>⚠️ Danger Zone</h4>
+          <button id="admin-cleanup-old-strokes" class="admin-btn admin-btn-warning">
+            🧹 Cleanup Fully Faded Strokes (24h+)
+          </button>
+          <button id="admin-reset-all-ink" class="admin-btn admin-btn-danger">
+            💧 Reset All User Ink to Max
+          </button>
+          <button id="admin-export-data" class="admin-btn">
+            📥 Export All Data (JSON)
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Admin Login Modal -->
+  <div id="admin-login-modal" class="admin-modal hidden">
+    <div class="admin-modal-content">
+      <h3>🔐 Admin Login</h3>
+      <input type="password" id="admin-password" placeholder="Enter admin password" autocomplete="off">
+      <div class="admin-modal-buttons">
+        <button id="admin-login-submit" class="admin-btn admin-btn-primary">Login</button>
+        <button id="admin-login-cancel" class="admin-btn">Cancel</button>
+      </div>
+      <p id="admin-login-error" class="admin-error hidden">Incorrect password</p>
+    </div>
+  </div>
+
+  <!-- Color Picker Modal (for editing palette colors) -->
+  <div id="admin-color-picker-modal" class="admin-modal hidden">
+    <div class="admin-modal-content">
+      <h3>Edit Color</h3>
+      <input type="color" id="admin-color-picker" value="#000000">
+      <input type="text" id="admin-color-hex" placeholder="#000000" maxlength="7">
+      <div class="admin-modal-buttons">
+        <button id="admin-color-save" class="admin-btn admin-btn-primary">Save</button>
+        <button id="admin-color-cancel" class="admin-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Font Editor Modal -->
+  <div id="admin-font-editor-modal" class="admin-modal hidden">
+    <div class="admin-modal-content">
+      <h3>Edit Font</h3>
+      <label>
+        Font Name (Display)
+        <input type="text" id="admin-font-name" placeholder="Arial">
+      </label>
+      <label>
+        CSS Font Family
+        <input type="text" id="admin-font-family" placeholder="Arial, sans-serif">
+      </label>
+      <label>
+        Category
+        <select id="admin-font-category">
+          <option value="sans-serif">Sans Serif</option>
+          <option value="serif">Serif</option>
+          <option value="monospace">Monospace</option>
+          <option value="cursive">Cursive</option>
+          <option value="display">Display</option>
+        </select>
+      </label>
+      <div class="admin-font-preview" id="admin-font-preview">
+        The quick brown fox jumps over the lazy dog
+      </div>
+      <div class="admin-modal-buttons">
+        <button id="admin-font-save" class="admin-btn admin-btn-primary">Save</button>
+        <button id="admin-font-cancel" class="admin-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Access Button (bottom-right corner) -->
+  <button id="admin-access-btn" class="admin-access-btn" title="Admin Panel">⚙️</button>
 
   <script type="module" src="/src/main.js"></script>
 </body>

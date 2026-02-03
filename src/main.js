@@ -22,6 +22,8 @@ import {
   COLOR_PALETTE,
   FONT_OPTIONS
 } from './config/firebase.config.js';
+import { initAdminPanel } from './admin/admin-panel.js';
+import { loadAdminConfig } from './services/admin.service.js';
 
 // Application state
 const state = {
@@ -69,10 +71,26 @@ async function init() {
   // Get user location and IP hash
   await initUser();
 
+  // Load admin config and apply settings
+  if (isConfigured) {
+    const adminConfig = await loadAdminConfig();
+    if (adminConfig) {
+      applyAdminConfig(adminConfig);
+    }
+  }
+
   // Setup event listeners
   setupBottomToolbar();
   setupCanvas();
   setupKeyboard();
+
+  // Initialize admin panel
+  initAdminPanel();
+
+  // Listen for config updates from admin panel
+  window.addEventListener('admin-config-updated', (e) => {
+    applyAdminConfig(e.detail);
+  });
 
   // Initialize UI state
   updateColorBtnSwatch();
@@ -90,6 +108,102 @@ async function init() {
   startInkUpdater();
 
   console.log('App initialized');
+}
+
+// Apply admin configuration to app
+function applyAdminConfig(config) {
+  // Store config globally for access by other functions
+  window.appAdminConfig = config;
+
+  if (config.maintenanceMode) {
+    // Disable drawing
+    document.getElementById('canvas-container').style.pointerEvents = 'none';
+    alert('The wall is currently in maintenance mode. Drawing is temporarily disabled.');
+  } else {
+    document.getElementById('canvas-container').style.pointerEvents = 'auto';
+  }
+
+  // Update color palette if changed
+  if (config.colorPalette) {
+    initColorPalette(config.colorPalette);
+  }
+
+  // Update available fonts for text tool
+  if (config.fonts) {
+    window.appAvailableFonts = config.fonts;
+    // Re-initialize font arc menu
+    initFontArc(config.fonts);
+  }
+}
+
+// Initialize/re-initialize color palette
+function initColorPalette(palette) {
+  const colorArc = document.getElementById('color-arc');
+  colorArc.innerHTML = ''; // Clear existing
+
+  palette.forEach((color, index) => {
+    const btn = document.createElement('button');
+    btn.className = 'arc-btn color-arc-btn';
+    btn.dataset.color = color;
+
+    const dot = document.createElement('div');
+    dot.className = 'color-dot';
+    dot.style.background = color;
+
+    // Last color (white) needs border for visibility
+    if (index === palette.length - 1) {
+      dot.style.border = '1px solid #999';
+    }
+
+    btn.appendChild(dot);
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.currentColor = color;
+      updateColorBtnSwatch();
+      colorArc.classList.add('hidden');
+    });
+
+    colorArc.appendChild(btn);
+  });
+
+  // Update current color if not in new palette
+  if (!palette.includes(state.currentColor)) {
+    state.currentColor = palette[0];
+    updateColorBtnSwatch();
+  }
+}
+
+// Initialize/re-initialize font arc menu
+function initFontArc(fonts) {
+  const fontArc = document.getElementById('font-arc');
+  fontArc.innerHTML = ''; // Clear existing
+
+  fonts.forEach((font) => {
+    const btn = document.createElement('button');
+    btn.className = 'arc-btn font-arc-btn';
+    btn.dataset.font = font.family;
+    btn.textContent = font.name;
+    btn.style.fontFamily = font.family;
+    btn.style.fontSize = '12px';
+    btn.style.fontWeight = '600';
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.currentFont = font.family;
+      updateFontBtnLabel();
+      fontArc.classList.add('hidden');
+    });
+
+    fontArc.appendChild(btn);
+  });
+
+  // Update current font if not in new list
+  const fontFamilies = fonts.map(f => f.family);
+  if (!fontFamilies.includes(state.currentFont)) {
+    state.currentFont = fonts[0]?.family || 'sans-serif';
+    updateFontBtnLabel();
+  }
 }
 
 // Initialize user (get IP hash and country)
@@ -154,35 +268,12 @@ function setupBottomToolbar() {
   const colorBtn = document.getElementById('color-btn');
   const colorArc = document.getElementById('color-arc');
 
-  // Generate color arc buttons from COLOR_PALETTE
-  COLOR_PALETTE.forEach((color, index) => {
-    const btn = document.createElement('button');
-    btn.className = 'arc-btn color-arc-btn';
-    btn.dataset.color = color;
-
-    const dot = document.createElement('div');
-    dot.className = 'color-dot';
-    dot.style.background = color;
-
-    // Last color (white) needs border for visibility
-    if (index === COLOR_PALETTE.length - 1) {
-      dot.style.border = '1px solid #999';
-    }
-
-    btn.appendChild(dot);
-
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      state.currentColor = color;
-      updateColorBtnSwatch();
-      colorArc.classList.add('hidden');
-    });
-
-    colorArc.appendChild(btn);
-  });
+  // Generate color arc buttons (use admin config palette if available, otherwise default)
+  const colorPalette = window.appAdminConfig?.colorPalette || COLOR_PALETTE;
+  initColorPalette(colorPalette);
 
   // Set initial color (first in palette)
-  state.currentColor = COLOR_PALETTE[0];
+  state.currentColor = colorPalette[0];
 
   colorBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -198,25 +289,12 @@ function setupBottomToolbar() {
   const fontBtn = document.getElementById('font-btn');
   const fontArc = document.getElementById('font-arc');
 
-  // Generate font arc buttons from FONT_OPTIONS
-  FONT_OPTIONS.forEach((font, index) => {
-    const btn = document.createElement('button');
-    btn.className = 'arc-btn font-arc-btn';
-    btn.dataset.font = font.value;
-    btn.textContent = font.name;
-    btn.style.fontFamily = font.value;
-    btn.style.fontSize = '12px';
-    btn.style.fontWeight = '600';
+  // Generate font arc buttons (use admin config fonts if available, otherwise default)
+  const fonts = window.appAvailableFonts || FONT_OPTIONS.map(f => ({ name: f.name, family: f.value, category: 'sans-serif' }));
+  initFontArc(fonts);
 
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      state.currentFont = font.value;
-      updateFontBtnLabel();
-      fontArc.classList.add('hidden');
-    });
-
-    fontArc.appendChild(btn);
-  });
+  // Set initial font
+  state.currentFont = fonts[0]?.family || 'sans-serif';
 
   fontBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -329,7 +407,9 @@ function updateToolDependentControls() {
 // Update font button label
 function updateFontBtnLabel() {
   const label = document.getElementById('font-btn-label');
-  const fontOption = FONT_OPTIONS.find(f => f.value === state.currentFont);
+  // Use admin fonts if available, otherwise fall back to default FONT_OPTIONS
+  const fonts = window.appAvailableFonts || FONT_OPTIONS.map(f => ({ name: f.name, family: f.value }));
+  const fontOption = fonts.find(f => f.family === state.currentFont);
   label.textContent = fontOption ? fontOption.name : 'Font';
 }
 
@@ -585,9 +665,44 @@ function handleTouchEnd(e) {
 function showTextModal() {
   const modal = document.getElementById('text-input-modal');
   const input = document.getElementById('text-input');
+  const fontSelect = document.getElementById('text-font-select');
+
+  // Initialize font selector
+  initTextFontSelector();
+
   modal.classList.remove('hidden');
   input.value = '';
+  fontSelect.selectedIndex = 0; // Reset to first font
+
+  // Set current font to first in list
+  const fonts = window.appAvailableFonts || FONT_OPTIONS.map(f => ({ name: f.name, family: f.value }));
+  state.currentFont = fonts[0]?.family || 'sans-serif';
+
   input.focus();
+}
+
+// Initialize font selector in text modal
+function initTextFontSelector() {
+  const select = document.getElementById('text-font-select');
+  select.innerHTML = '';
+
+  const fonts = window.appAvailableFonts || FONT_OPTIONS.map(f => ({ name: f.name, family: f.value }));
+
+  fonts.forEach((font, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+    option.textContent = font.name;
+    option.style.fontFamily = font.family;
+    select.appendChild(option);
+  });
+
+  // Add change handler
+  select.onchange = (e) => {
+    const selectedFont = fonts[e.target.value];
+    if (selectedFont) {
+      state.currentFont = selectedFont.family;
+    }
+  };
 }
 
 // Close text modal
