@@ -115,11 +115,25 @@ async function showAdminPanel() {
 
   // Load initial data
   currentConfig = await loadAdminConfig();
-  if (currentConfig) {
-    populateConfigForm();
-    renderColorPalette();
-    renderFontList();
+
+  // If config failed to load, create default config
+  if (!currentConfig) {
+    currentConfig = {
+      maintenanceMode: false,
+      maxInkPerUser: 250000,
+      inkRefillRate: 2.78,
+      fadeDuration: 86400000,
+      inactivityTimeout: 10000,
+      allowText: true,
+      allowEraser: true,
+      colorPalette: [...DEFAULT_COLOR_PALETTE],
+      fonts: [...DEFAULT_FONTS]
+    };
   }
+
+  populateConfigForm();
+  renderColorPalette();
+  renderFontList();
   loadStats();
 }
 
@@ -228,12 +242,16 @@ function handleColorSave() {
 }
 
 function handleAddColor() {
+  if (!currentConfig) {
+    currentConfig = { colorPalette: [], fonts: [] };
+  }
   if (!currentConfig.colorPalette) currentConfig.colorPalette = [];
   currentConfig.colorPalette.push('#000000');
   renderColorPalette();
 }
 
 function handleRemoveColor(index) {
+  if (!currentConfig || !currentConfig.colorPalette) return;
   if (currentConfig.colorPalette.length <= 2) {
     alert('Must have at least 2 colors');
     return;
@@ -244,6 +262,9 @@ function handleRemoveColor(index) {
 
 function handleResetColors() {
   if (!confirm('Reset color palette to default?')) return;
+  if (!currentConfig) {
+    currentConfig = { colorPalette: [], fonts: [] };
+  }
   currentConfig.colorPalette = [...DEFAULT_COLOR_PALETTE];
   renderColorPalette();
 }
@@ -340,6 +361,9 @@ function handleFontSave() {
 }
 
 function handleAddFont() {
+  if (!currentConfig) {
+    currentConfig = { colorPalette: [], fonts: [] };
+  }
   if (!currentConfig.fonts) currentConfig.fonts = [];
 
   currentConfig.fonts.push({
@@ -355,6 +379,7 @@ function handleAddFont() {
 }
 
 function handleRemoveFont(index) {
+  if (!currentConfig || !currentConfig.fonts) return;
   if (currentConfig.fonts.length <= 1) {
     alert('Must have at least 1 font');
     return;
@@ -368,6 +393,9 @@ function handleRemoveFont(index) {
 
 function handleResetFonts() {
   if (!confirm('Reset font list to default?')) return;
+  if (!currentConfig) {
+    currentConfig = { colorPalette: [], fonts: [] };
+  }
   currentConfig.fonts = [...DEFAULT_FONTS];
   renderFontList();
 }
