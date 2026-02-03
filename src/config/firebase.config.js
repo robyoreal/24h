@@ -39,12 +39,12 @@ export const DEFAULT_STROKE_WIDTH = 10;
 // Colors - SINGLE SOURCE OF TRUTH
 export const COLOR_PALETTE = [
   '#000000', // black (default)
-  '#ff70a6', // red
-  '#b6e88e', // green
-  '#70d6ff', // blue
-  '#faf884', // yellow
+  '#bf212f', // red
+  '#006f3c', // green
+  '#264b96', // blue
+  '#f9a73e', // yellow
   '#f6c2f3', // magenta
-  '#b7fffa', // cyan
+  '#00aeef', // cyan
   '#FFFFFF'  // white (always last - needs border)
 ];
 
