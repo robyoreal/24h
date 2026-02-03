@@ -65,7 +65,7 @@ export const MAX_BUFFER_SIZE = 50; // Max strokes before force flush
 // Admin password hash (SHA-256)
 // Default: empty string hash - CHANGE THIS IMMEDIATELY
 // Generate your hash: run `echo -n "your_password" | shasum -a 256` in terminal
-export const ADMIN_PASSWORD_HASH = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+export const ADMIN_PASSWORD_HASH = '13c4f654aeb5bc0513cc0cbd0716f7be44d462a00e78c2324b4dd79a8d500506';
 
 // Default color palette (used for reset)
 export const DEFAULT_COLOR_PALETTE = [
