@@ -48,6 +48,14 @@ export const COLOR_PALETTE = [
   '#FFFFFF'  // white (always last - needs border)
 ];
 
+// Font options for text tool
+export const FONT_OPTIONS = [
+  { name: 'Sans', value: 'sans-serif' },
+  { name: 'Serif', value: 'serif' },
+  { name: 'Mono', value: 'monospace' },
+  { name: 'Cursive', value: 'cursive' }
+];
+
 // Buffer settings
 export const INACTIVITY_TIMEOUT = 2000; // 2 seconds
 export const MAX_BUFFER_SIZE = 50; // Max strokes before force flush
