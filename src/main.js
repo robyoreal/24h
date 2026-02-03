@@ -41,6 +41,13 @@ const state = {
   lastMousePos: { x: 0, y: 0 },
   tileListeners: new Map(), // Track active listeners
 
+  // Inline text input state
+  isTypingText: false,        // Whether user is currently typing
+  currentText: '',            // Text being typed
+  textWorldPos: null,         // World coordinates where text is being typed
+  cursorVisible: true,        // Cursor blink state
+  cursorBlinkInterval: null,  // Interval for cursor blinking
+
   // New keys for bottom toolbar
   undoTimer: null,             // timeout ref for auto-hiding undo button
   undoTimestamp: null,         // Date.now() of last local stroke, used for 60s undo window
@@ -257,6 +264,10 @@ function setupBottomToolbar() {
   toolArc.querySelectorAll('.arc-btn[data-tool]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      // Finish any in-progress text before switching tools
+      if (state.isTypingText) {
+        finishTypingText();
+      }
       state.currentTool = btn.dataset.tool;
       updateToolIcon();
       updateToolDependentControls();
@@ -340,13 +351,6 @@ function setupBottomToolbar() {
     toolArc.classList.add('hidden');
     colorArc.classList.add('hidden');
     fontArc.classList.add('hidden');
-  });
-
-  // --- Text modal ---
-  document.getElementById('text-submit').addEventListener('click', submitText);
-  document.getElementById('text-cancel').addEventListener('click', closeTextModal);
-  document.getElementById('text-input').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') submitText();
   });
 }
 
@@ -477,6 +481,10 @@ function handleMouseDown(e) {
     state.isPanning = true;
     state.lastMousePos = { x: e.clientX, y: e.clientY };
   } else if (state.currentTool === 'brush' || state.currentTool === 'eraser') {
+    // If typing text, finish it first
+    if (state.isTypingText) {
+      finishTypingText();
+    }
     // Start drawing
     const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
     const drawColor = state.currentTool === 'eraser' ? '#FFFFFF' : state.currentColor;
@@ -488,10 +496,16 @@ function handleMouseDown(e) {
       state.userCountry
     );
   } else if (state.currentTool === 'text') {
-    // Show text input modal
+    // Inline text input - click to start/move typing position
     const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
-    state.textWorldPos = worldPos;
-    showTextModal();
+
+    // If already typing, submit current text first
+    if (state.isTypingText && state.currentText.length > 0) {
+      finishTypingText();
+    }
+
+    // Start typing at new position
+    startTypingText(worldPos);
   }
 }
 
@@ -562,6 +576,10 @@ function handleTouchStart(e) {
     const screenY = touch.clientY - rect.top;
 
     if (state.currentTool === 'brush' || state.currentTool === 'eraser') {
+      // If typing text, finish it first
+      if (state.isTypingText) {
+        finishTypingText();
+      }
       touchMode = 'draw';
       const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
       const drawColor = state.currentTool === 'eraser' ? '#FFFFFF' : state.currentColor;
@@ -569,14 +587,24 @@ function handleTouchStart(e) {
     } else if (state.currentTool === 'text') {
       touchMode = 'text';
       const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
-      state.textWorldPos = worldPos;
-      showTextModal();
+
+      // If already typing, submit current text first
+      if (state.isTypingText && state.currentText.length > 0) {
+        finishTypingText();
+      }
+
+      // Start typing at new position
+      startTypingText(worldPos);
     }
   } else if (e.touches.length === 2) {
     // Cancel any in-progress draw stroke if a second finger appears
     if (state.canvasManager.isDrawing) {
       state.canvasManager.isDrawing = false;
       state.canvasManager.currentStroke = null;
+    }
+    // If typing, finish text
+    if (state.isTypingText) {
+      finishTypingText();
     }
     touchMode = 'gesture';
   }
@@ -659,87 +687,126 @@ function handleTouchEnd(e) {
   lastTouches = [];
 }
 
-// Helper removed - no longer needed since we always do both
+// ===== Inline Text Input =====
 
-// Show text input modal
-function showTextModal() {
-  const modal = document.getElementById('text-input-modal');
-  const input = document.getElementById('text-input');
-  const fontSelect = document.getElementById('text-font-select');
+// Start typing text at position
+function startTypingText(worldPos) {
+  state.isTypingText = true;
+  state.currentText = '';
+  state.textWorldPos = worldPos;
+  state.cursorVisible = true;
 
-  // Initialize font selector
-  initTextFontSelector();
+  // Start cursor blink
+  if (state.cursorBlinkInterval) {
+    clearInterval(state.cursorBlinkInterval);
+  }
+  state.cursorBlinkInterval = setInterval(() => {
+    state.cursorVisible = !state.cursorVisible;
+    state.canvasManager.render();
+  }, 530);
 
-  modal.classList.remove('hidden');
-  input.value = '';
-  fontSelect.selectedIndex = 0; // Reset to first font
-
-  // Set current font to first in list
-  const fonts = window.appAvailableFonts || FONT_OPTIONS.map(f => ({ name: f.name, family: f.value }));
-  state.currentFont = fonts[0]?.family || 'sans-serif';
-
-  input.focus();
+  state.canvasManager.render();
 }
 
-// Initialize font selector in text modal
-function initTextFontSelector() {
-  const select = document.getElementById('text-font-select');
-  select.innerHTML = '';
+// Handle keyboard input for inline text
+function handleTextKeydown(e) {
+  if (!state.isTypingText) return false;
 
-  const fonts = window.appAvailableFonts || FONT_OPTIONS.map(f => ({ name: f.name, family: f.value }));
+  // Enter = finish typing
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    finishTypingText();
+    return true;
+  }
 
-  fonts.forEach((font, index) => {
-    const option = document.createElement('option');
-    option.value = index;
-    option.textContent = font.name;
-    option.style.fontFamily = font.family;
-    select.appendChild(option);
-  });
+  // Escape = cancel typing
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    cancelTypingText();
+    return true;
+  }
 
-  // Add change handler
-  select.onchange = (e) => {
-    const selectedFont = fonts[e.target.value];
-    if (selectedFont) {
-      state.currentFont = selectedFont.family;
+  // Backspace = delete last character
+  if (e.key === 'Backspace') {
+    e.preventDefault();
+    state.currentText = state.currentText.slice(0, -1);
+    state.canvasManager.render();
+    return true;
+  }
+
+  // Ignore control keys, function keys, etc.
+  if (e.key.length > 1 && !e.key.startsWith('Arrow')) {
+    return true; // Consume but don't add to text
+  }
+
+  // Arrow keys - ignore for text input
+  if (e.key.startsWith('Arrow')) {
+    return true;
+  }
+
+  // Add typed character (printable characters only)
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    // Limit text length
+    if (state.currentText.length < 100) {
+      state.currentText += e.key;
+      state.canvasManager.render();
     }
-  };
-}
-
-// Close text modal
-function closeTextModal() {
-  document.getElementById('text-input-modal').classList.add('hidden');
-}
-
-// Submit text
-function submitText() {
-  const input = document.getElementById('text-input');
-  const text = input.value.trim();
-
-  if (!text || !state.textWorldPos) {
-    closeTextModal();
-    return;
+    return true;
   }
 
-  const fontSize = state.currentWidth * 2; // Scale brush size for readable text
-  const inkCost = state.canvasManager.addTextStroke(
-    state.textWorldPos.x,
-    state.textWorldPos.y,
-    text,
-    fontSize,
-    state.currentColor,
-    state.userCountry,
-    state.currentFont
-  );
+  return false;
+}
 
-  // Deduct ink
-  if (state.userInk) {
-    state.userInk.inkRemaining -= inkCost;
-    updateInkGauge();
+// Finish typing and add text stroke
+function finishTypingText() {
+  if (!state.isTypingText) return;
+
+  const text = state.currentText.trim();
+
+  if (text && state.textWorldPos) {
+    const fontSize = state.currentWidth * 2;
+    const inkCost = state.canvasManager.addTextStroke(
+      state.textWorldPos.x,
+      state.textWorldPos.y,
+      text,
+      fontSize,
+      state.currentColor,
+      state.userCountry,
+      state.currentFont
+    );
+
+    // Deduct ink
+    if (state.userInk) {
+      state.userInk.inkRemaining -= inkCost;
+      updateInkGauge();
+    }
+
+    resetInactivityTimer();
+    showUndoButton();
   }
 
-  resetInactivityTimer();
-  closeTextModal();
-  showUndoButton();
+  // Clear typing state
+  stopTypingText();
+}
+
+// Cancel typing without saving
+function cancelTypingText() {
+  stopTypingText();
+}
+
+// Stop typing (cleanup)
+function stopTypingText() {
+  state.isTypingText = false;
+  state.currentText = '';
+  state.textWorldPos = null;
+
+  if (state.cursorBlinkInterval) {
+    clearInterval(state.cursorBlinkInterval);
+    state.cursorBlinkInterval = null;
+  }
+
+  state.canvasManager.render();
 }
 
 // Start ink updater (refill over time)
@@ -749,12 +816,20 @@ function startInkUpdater() {
   }, 1000); // Update every second
 }
 
-// Keyboard arrow-key pan (smooth, Excel-style)
+// Keyboard handler
 function setupKeyboard() {
   document.addEventListener('keydown', (e) => {
-    // Ignore if user is typing in a text input
-    if (e.target.tagName === 'INPUT') return;
+    // Ignore if user is typing in a DOM input field
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
+    // Handle inline text input first
+    if (state.isTypingText) {
+      if (handleTextKeydown(e)) {
+        return; // Event was handled by text input
+      }
+    }
+
+    // Arrow key pan (only when not typing)
     let moved = false;
     if (e.key === 'ArrowUp')    { state.arrowKeys.up = true;    moved = true; }
     if (e.key === 'ArrowDown')  { state.arrowKeys.down = true;  moved = true; }
