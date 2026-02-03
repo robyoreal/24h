@@ -27,9 +27,16 @@ body {
 #tool-btn-wrap,
 #width-dial-wrap,
 #color-btn-wrap,
+#font-btn-wrap,
 #ink-gauge-wrap,
 #undo-btn-wrap {
   position: relative;
+}
+
+/* Hidden wrapper */
+#color-btn-wrap.hidden,
+#font-btn-wrap.hidden {
+  display: none;
 }
 
 /* Base circle button */
@@ -128,12 +135,12 @@ body {
   /* background set dynamically via JS */
 }
 
-/* When eraser is active, color button shows checkerboard */
-#color-btn-swatch.eraser-mode {
-  background-image:
-    repeating-conic-gradient(#aaa 0% 25%, transparent 0% 50%);
-  background-size: 12px 12px;
-  background-color: transparent;
+/* ---- Font Button ---- */
+#font-btn-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  pointer-events: none;
 }
 
 /* ---- Width Dial ---- */

@@ -150,28 +150,29 @@ export class CanvasManager {
   }
   
   // Add text stroke
-  addTextStroke(worldX, worldY, text, fontSize, color, country) {
+  addTextStroke(worldX, worldY, text, fontSize, color, country, fontFamily = 'sans-serif') {
     // Measure text to calculate ink
-    this.ctx.font = `${fontSize}px Arial`;
+    this.ctx.font = `${fontSize}px ${fontFamily}`;
     const metrics = this.ctx.measureText(text);
     const width = metrics.width;
     const height = fontSize;
     const inkUsed = width * height;
-    
+
     const textStroke = {
       type: 'text',
       text: text,
       position: [worldX, worldY],
       fontSize: fontSize,
+      fontFamily: fontFamily,
       color: color,
       timestamp: Date.now(),
       country: country,
       inkUsed: inkUsed
     };
-    
+
     this.localStrokes.push(textStroke);
     this.render();
-    
+
     return inkUsed;
   }
   
@@ -249,13 +250,14 @@ export class CanvasManager {
     
     if (stroke.type === 'text') {
       // Render text
-      this.ctx.font = `${stroke.fontSize * this.viewport.zoom}px Arial`;
+      const fontFamily = stroke.fontFamily || 'sans-serif';
+      this.ctx.font = `${stroke.fontSize * this.viewport.zoom}px ${fontFamily}`;
       this.ctx.fillStyle = stroke.color;
       this.ctx.globalAlpha = opacity;
-      
+
       const screenPos = this.worldToScreen(stroke.position[0], stroke.position[1]);
       this.ctx.fillText(stroke.text, screenPos.x, screenPos.y);
-      
+
       this.ctx.globalAlpha = 1;
     } else {
       // Render drawing stroke

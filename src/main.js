@@ -19,7 +19,8 @@ import {
   MAX_BUFFER_SIZE,
   DEFAULT_STROKE_WIDTH,
   INK_REFILL_RATE,
-  COLOR_PALETTE
+  COLOR_PALETTE,
+  FONT_OPTIONS
 } from './config/firebase.config.js';
 
 // Application state
@@ -28,6 +29,7 @@ const state = {
   currentTool: 'brush', // 'brush', 'text', or 'eraser'
   currentColor: null, // Set by initColorPalette()
   currentWidth: DEFAULT_STROKE_WIDTH,
+  currentFont: 'sans-serif', // Default font for text tool
   userIpHash: null,
   userCountry: null,
   userInk: null,
@@ -74,6 +76,7 @@ async function init() {
 
   // Initialize UI state
   updateColorBtnSwatch();
+  updateToolDependentControls();
 
   // Load initial tiles
   if (isConfigured) {
@@ -142,7 +145,7 @@ function setupBottomToolbar() {
       e.stopPropagation();
       state.currentTool = btn.dataset.tool;
       updateToolIcon();
-      updateColorBtnSwatch();
+      updateToolDependentControls();
       toolArc.classList.add('hidden');
     });
   });
@@ -186,8 +189,41 @@ function setupBottomToolbar() {
     // Do nothing if eraser is active
     if (state.currentTool === 'eraser') return;
     colorArc.classList.toggle('hidden');
-    // Close tool arc if open
+    // Close other arcs if open
     toolArc.classList.add('hidden');
+    document.getElementById('font-arc').classList.add('hidden');
+  });
+
+  // --- Font button & arc (text mode only) ---
+  const fontBtn = document.getElementById('font-btn');
+  const fontArc = document.getElementById('font-arc');
+
+  // Generate font arc buttons from FONT_OPTIONS
+  FONT_OPTIONS.forEach((font, index) => {
+    const btn = document.createElement('button');
+    btn.className = 'arc-btn font-arc-btn';
+    btn.dataset.font = font.value;
+    btn.textContent = font.name;
+    btn.style.fontFamily = font.value;
+    btn.style.fontSize = '12px';
+    btn.style.fontWeight = '600';
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.currentFont = font.value;
+      updateFontBtnLabel();
+      fontArc.classList.add('hidden');
+    });
+
+    fontArc.appendChild(btn);
+  });
+
+  fontBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    fontArc.classList.toggle('hidden');
+    // Close other arcs if open
+    toolArc.classList.add('hidden');
+    colorArc.classList.add('hidden');
   });
 
   // --- Width Dial (drag interaction) ---
@@ -225,6 +261,7 @@ function setupBottomToolbar() {
   document.getElementById('canvas-container').addEventListener('mousedown', () => {
     toolArc.classList.add('hidden');
     colorArc.classList.add('hidden');
+    fontArc.classList.add('hidden');
   });
 
   // --- Text modal ---
@@ -264,13 +301,36 @@ function updateToolIcon() {
 
 function updateColorBtnSwatch() {
   const swatch = document.getElementById('color-btn-swatch');
+  swatch.classList.remove('eraser-mode');
+  swatch.style.background = state.currentColor;
+}
+
+// Update visibility of tool-dependent controls (font button, color button)
+function updateToolDependentControls() {
+  const colorBtnWrap = document.getElementById('color-btn-wrap');
+  const fontBtnWrap = document.getElementById('font-btn-wrap');
+
+  // Hide color button in eraser mode
   if (state.currentTool === 'eraser') {
-    swatch.classList.add('eraser-mode');
-    swatch.style.background = '';
+    colorBtnWrap.classList.add('hidden');
   } else {
-    swatch.classList.remove('eraser-mode');
-    swatch.style.background = state.currentColor;
+    colorBtnWrap.classList.remove('hidden');
+    updateColorBtnSwatch();
   }
+
+  // Show font button only in text mode
+  if (state.currentTool === 'text') {
+    fontBtnWrap.classList.remove('hidden');
+  } else {
+    fontBtnWrap.classList.add('hidden');
+  }
+}
+
+// Update font button label
+function updateFontBtnLabel() {
+  const label = document.getElementById('font-btn-label');
+  const fontOption = FONT_OPTIONS.find(f => f.value === state.currentFont);
+  label.textContent = fontOption ? fontOption.name : 'Font';
 }
 
 function updateInkGauge() {
@@ -545,14 +605,15 @@ function submitText() {
     return;
   }
 
-  const fontSize = 24; // Fixed for now
+  const fontSize = state.currentWidth * 2; // Scale brush size for readable text
   const inkCost = state.canvasManager.addTextStroke(
     state.textWorldPos.x,
     state.textWorldPos.y,
     text,
     fontSize,
     state.currentColor,
-    state.userCountry
+    state.userCountry,
+    state.currentFont
   );
 
   // Deduct ink
