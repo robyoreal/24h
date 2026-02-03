@@ -59,3 +59,28 @@ export const FONT_OPTIONS = [
 // Buffer settings
 export const INACTIVITY_TIMEOUT = 2000; // 2 seconds
 export const MAX_BUFFER_SIZE = 50; // Max strokes before force flush
+
+// ===== Admin Settings =====
+
+// Admin password hash (SHA-256)
+// Default: empty string hash - CHANGE THIS IMMEDIATELY
+// Generate your hash: run `echo -n "your_password" | shasum -a 256` in terminal
+export const ADMIN_PASSWORD_HASH = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+// Default color palette (used for reset)
+export const DEFAULT_COLOR_PALETTE = [
+  '#000000', '#FF5733', '#33FF57', '#3357FF',
+  '#FFFF33', '#FF33FF', '#33FFFF', '#FFFFFF'
+];
+
+// Default font list (used for reset)
+export const DEFAULT_FONTS = [
+  { name: 'Arial', family: 'Arial, sans-serif', category: 'sans-serif' },
+  { name: 'Times New Roman', family: '"Times New Roman", serif', category: 'serif' },
+  { name: 'Courier New', family: '"Courier New", monospace', category: 'monospace' },
+  { name: 'Georgia', family: 'Georgia, serif', category: 'serif' },
+  { name: 'Verdana', family: 'Verdana, sans-serif', category: 'sans-serif' },
+  { name: 'Comic Sans MS', family: '"Comic Sans MS", cursive', category: 'cursive' },
+  { name: 'Impact', family: 'Impact, sans-serif', category: 'display' },
+  { name: 'Trebuchet MS', family: '"Trebuchet MS", sans-serif', category: 'sans-serif' }
+];

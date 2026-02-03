@@ -13,12 +13,20 @@ service cloud.firestore {
     // User ink - users can only access their own ink data
     match /userInk/{ipHash} {
       allow read: if true; // Allow reading to calculate current ink
-      allow create: if request.auth == null && 
+      allow create: if request.auth == null &&
                       request.resource.data.inkRemaining == 250000;
-      allow update: if request.auth == null && 
+      allow update: if request.auth == null &&
                       request.resource.data.inkRemaining >= 0 &&
                       request.resource.data.inkRemaining <= 250000;
       allow delete: if false;
+    }
+
+    // Admin settings - read by all, write by anyone (password protection in client)
+    // NOTE: In production with Firebase Auth, change to:
+    // allow write: if request.auth != null && request.auth.token.admin == true;
+    match /adminSettings/{document} {
+      allow read: if true;
+      allow write: if true; // Writes protected by client-side password verification
     }
   }
 }

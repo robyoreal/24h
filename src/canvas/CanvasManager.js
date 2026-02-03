@@ -238,6 +238,43 @@ export class CanvasManager {
     if (this.currentStroke) {
       this.renderStroke(this.currentStroke, now);
     }
+
+    // Render inline text being typed
+    this.renderTypingText();
+  }
+
+  // Render text being typed with blinking cursor
+  renderTypingText() {
+    const appState = window.appState;
+    if (!appState || !appState.isTypingText || !appState.textWorldPos) return;
+
+    const fontSize = appState.currentWidth * 2;
+    const fontFamily = appState.currentFont || 'sans-serif';
+    const color = appState.currentColor || '#000000';
+    const text = appState.currentText || '';
+
+    const screenPos = this.worldToScreen(appState.textWorldPos.x, appState.textWorldPos.y);
+    const scaledFontSize = fontSize * this.viewport.zoom;
+
+    this.ctx.font = `${scaledFontSize}px ${fontFamily}`;
+    this.ctx.fillStyle = color;
+
+    // Draw the text
+    this.ctx.fillText(text, screenPos.x, screenPos.y);
+
+    // Draw blinking cursor
+    if (appState.cursorVisible) {
+      const textWidth = this.ctx.measureText(text).width;
+      const cursorX = screenPos.x + textWidth;
+      const cursorHeight = scaledFontSize;
+
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.moveTo(cursorX, screenPos.y - cursorHeight * 0.8);
+      this.ctx.lineTo(cursorX, screenPos.y + cursorHeight * 0.2);
+      this.ctx.stroke();
+    }
   }
   
   // Render individual stroke

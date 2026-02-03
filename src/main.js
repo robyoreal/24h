@@ -22,6 +22,8 @@ import {
   COLOR_PALETTE,
   FONT_OPTIONS
 } from './config/firebase.config.js';
+import { initAdminPanel } from './admin/admin-panel.js';
+import { loadAdminConfig } from './services/admin.service.js';
 
 // Application state
 const state = {
@@ -38,6 +40,13 @@ const state = {
   isPanning: false,
   lastMousePos: { x: 0, y: 0 },
   tileListeners: new Map(), // Track active listeners
+
+  // Inline text input state
+  isTypingText: false,        // Whether user is currently typing
+  currentText: '',            // Text being typed
+  textWorldPos: null,         // World coordinates where text is being typed
+  cursorVisible: true,        // Cursor blink state
+  cursorBlinkInterval: null,  // Interval for cursor blinking
 
   // New keys for bottom toolbar
   undoTimer: null,             // timeout ref for auto-hiding undo button
@@ -69,10 +78,26 @@ async function init() {
   // Get user location and IP hash
   await initUser();
 
+  // Load admin config and apply settings
+  if (isConfigured) {
+    const adminConfig = await loadAdminConfig();
+    if (adminConfig) {
+      applyAdminConfig(adminConfig);
+    }
+  }
+
   // Setup event listeners
   setupBottomToolbar();
   setupCanvas();
   setupKeyboard();
+
+  // Initialize admin panel
+  initAdminPanel();
+
+  // Listen for config updates from admin panel
+  window.addEventListener('admin-config-updated', (e) => {
+    applyAdminConfig(e.detail);
+  });
 
   // Initialize UI state
   updateColorBtnSwatch();
@@ -90,6 +115,102 @@ async function init() {
   startInkUpdater();
 
   console.log('App initialized');
+}
+
+// Apply admin configuration to app
+function applyAdminConfig(config) {
+  // Store config globally for access by other functions
+  window.appAdminConfig = config;
+
+  if (config.maintenanceMode) {
+    // Disable drawing
+    document.getElementById('canvas-container').style.pointerEvents = 'none';
+    alert('The wall is currently in maintenance mode. Drawing is temporarily disabled.');
+  } else {
+    document.getElementById('canvas-container').style.pointerEvents = 'auto';
+  }
+
+  // Update color palette if changed
+  if (config.colorPalette) {
+    initColorPalette(config.colorPalette);
+  }
+
+  // Update available fonts for text tool
+  if (config.fonts) {
+    window.appAvailableFonts = config.fonts;
+    // Re-initialize font arc menu
+    initFontArc(config.fonts);
+  }
+}
+
+// Initialize/re-initialize color palette
+function initColorPalette(palette) {
+  const colorArc = document.getElementById('color-arc');
+  colorArc.innerHTML = ''; // Clear existing
+
+  palette.forEach((color, index) => {
+    const btn = document.createElement('button');
+    btn.className = 'arc-btn color-arc-btn';
+    btn.dataset.color = color;
+
+    const dot = document.createElement('div');
+    dot.className = 'color-dot';
+    dot.style.background = color;
+
+    // Last color (white) needs border for visibility
+    if (index === palette.length - 1) {
+      dot.style.border = '1px solid #999';
+    }
+
+    btn.appendChild(dot);
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.currentColor = color;
+      updateColorBtnSwatch();
+      colorArc.classList.add('hidden');
+    });
+
+    colorArc.appendChild(btn);
+  });
+
+  // Update current color if not in new palette
+  if (!palette.includes(state.currentColor)) {
+    state.currentColor = palette[0];
+    updateColorBtnSwatch();
+  }
+}
+
+// Initialize/re-initialize font arc menu
+function initFontArc(fonts) {
+  const fontArc = document.getElementById('font-arc');
+  fontArc.innerHTML = ''; // Clear existing
+
+  fonts.forEach((font) => {
+    const btn = document.createElement('button');
+    btn.className = 'arc-btn font-arc-btn';
+    btn.dataset.font = font.family;
+    btn.textContent = font.name;
+    btn.style.fontFamily = font.family;
+    btn.style.fontSize = '12px';
+    btn.style.fontWeight = '600';
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.currentFont = font.family;
+      updateFontBtnLabel();
+      fontArc.classList.add('hidden');
+    });
+
+    fontArc.appendChild(btn);
+  });
+
+  // Update current font if not in new list
+  const fontFamilies = fonts.map(f => f.family);
+  if (!fontFamilies.includes(state.currentFont)) {
+    state.currentFont = fonts[0]?.family || 'sans-serif';
+    updateFontBtnLabel();
+  }
 }
 
 // Initialize user (get IP hash and country)
@@ -143,6 +264,10 @@ function setupBottomToolbar() {
   toolArc.querySelectorAll('.arc-btn[data-tool]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+      // Finish any in-progress text before switching tools
+      if (state.isTypingText) {
+        finishTypingText();
+      }
       state.currentTool = btn.dataset.tool;
       updateToolIcon();
       updateToolDependentControls();
@@ -154,35 +279,12 @@ function setupBottomToolbar() {
   const colorBtn = document.getElementById('color-btn');
   const colorArc = document.getElementById('color-arc');
 
-  // Generate color arc buttons from COLOR_PALETTE
-  COLOR_PALETTE.forEach((color, index) => {
-    const btn = document.createElement('button');
-    btn.className = 'arc-btn color-arc-btn';
-    btn.dataset.color = color;
-
-    const dot = document.createElement('div');
-    dot.className = 'color-dot';
-    dot.style.background = color;
-
-    // Last color (white) needs border for visibility
-    if (index === COLOR_PALETTE.length - 1) {
-      dot.style.border = '1px solid #999';
-    }
-
-    btn.appendChild(dot);
-
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      state.currentColor = color;
-      updateColorBtnSwatch();
-      colorArc.classList.add('hidden');
-    });
-
-    colorArc.appendChild(btn);
-  });
+  // Generate color arc buttons (use admin config palette if available, otherwise default)
+  const colorPalette = window.appAdminConfig?.colorPalette || COLOR_PALETTE;
+  initColorPalette(colorPalette);
 
   // Set initial color (first in palette)
-  state.currentColor = COLOR_PALETTE[0];
+  state.currentColor = colorPalette[0];
 
   colorBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -198,25 +300,12 @@ function setupBottomToolbar() {
   const fontBtn = document.getElementById('font-btn');
   const fontArc = document.getElementById('font-arc');
 
-  // Generate font arc buttons from FONT_OPTIONS
-  FONT_OPTIONS.forEach((font, index) => {
-    const btn = document.createElement('button');
-    btn.className = 'arc-btn font-arc-btn';
-    btn.dataset.font = font.value;
-    btn.textContent = font.name;
-    btn.style.fontFamily = font.value;
-    btn.style.fontSize = '12px';
-    btn.style.fontWeight = '600';
+  // Generate font arc buttons (use admin config fonts if available, otherwise default)
+  const fonts = window.appAvailableFonts || FONT_OPTIONS.map(f => ({ name: f.name, family: f.value, category: 'sans-serif' }));
+  initFontArc(fonts);
 
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      state.currentFont = font.value;
-      updateFontBtnLabel();
-      fontArc.classList.add('hidden');
-    });
-
-    fontArc.appendChild(btn);
-  });
+  // Set initial font
+  state.currentFont = fonts[0]?.family || 'sans-serif';
 
   fontBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -262,13 +351,6 @@ function setupBottomToolbar() {
     toolArc.classList.add('hidden');
     colorArc.classList.add('hidden');
     fontArc.classList.add('hidden');
-  });
-
-  // --- Text modal ---
-  document.getElementById('text-submit').addEventListener('click', submitText);
-  document.getElementById('text-cancel').addEventListener('click', closeTextModal);
-  document.getElementById('text-input').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') submitText();
   });
 }
 
@@ -329,7 +411,9 @@ function updateToolDependentControls() {
 // Update font button label
 function updateFontBtnLabel() {
   const label = document.getElementById('font-btn-label');
-  const fontOption = FONT_OPTIONS.find(f => f.value === state.currentFont);
+  // Use admin fonts if available, otherwise fall back to default FONT_OPTIONS
+  const fonts = window.appAvailableFonts || FONT_OPTIONS.map(f => ({ name: f.name, family: f.value }));
+  const fontOption = fonts.find(f => f.family === state.currentFont);
   label.textContent = fontOption ? fontOption.name : 'Font';
 }
 
@@ -397,6 +481,10 @@ function handleMouseDown(e) {
     state.isPanning = true;
     state.lastMousePos = { x: e.clientX, y: e.clientY };
   } else if (state.currentTool === 'brush' || state.currentTool === 'eraser') {
+    // If typing text, finish it first
+    if (state.isTypingText) {
+      finishTypingText();
+    }
     // Start drawing
     const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
     const drawColor = state.currentTool === 'eraser' ? '#FFFFFF' : state.currentColor;
@@ -408,10 +496,16 @@ function handleMouseDown(e) {
       state.userCountry
     );
   } else if (state.currentTool === 'text') {
-    // Show text input modal
+    // Inline text input - click to start/move typing position
     const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
-    state.textWorldPos = worldPos;
-    showTextModal();
+
+    // If already typing, submit current text first
+    if (state.isTypingText && state.currentText.length > 0) {
+      finishTypingText();
+    }
+
+    // Start typing at new position
+    startTypingText(worldPos);
   }
 }
 
@@ -482,6 +576,10 @@ function handleTouchStart(e) {
     const screenY = touch.clientY - rect.top;
 
     if (state.currentTool === 'brush' || state.currentTool === 'eraser') {
+      // If typing text, finish it first
+      if (state.isTypingText) {
+        finishTypingText();
+      }
       touchMode = 'draw';
       const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
       const drawColor = state.currentTool === 'eraser' ? '#FFFFFF' : state.currentColor;
@@ -489,14 +587,24 @@ function handleTouchStart(e) {
     } else if (state.currentTool === 'text') {
       touchMode = 'text';
       const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
-      state.textWorldPos = worldPos;
-      showTextModal();
+
+      // If already typing, submit current text first
+      if (state.isTypingText && state.currentText.length > 0) {
+        finishTypingText();
+      }
+
+      // Start typing at new position
+      startTypingText(worldPos);
     }
   } else if (e.touches.length === 2) {
     // Cancel any in-progress draw stroke if a second finger appears
     if (state.canvasManager.isDrawing) {
       state.canvasManager.isDrawing = false;
       state.canvasManager.currentStroke = null;
+    }
+    // If typing, finish text
+    if (state.isTypingText) {
+      finishTypingText();
     }
     touchMode = 'gesture';
   }
@@ -579,52 +687,126 @@ function handleTouchEnd(e) {
   lastTouches = [];
 }
 
-// Helper removed - no longer needed since we always do both
+// ===== Inline Text Input =====
 
-// Show text input modal
-function showTextModal() {
-  const modal = document.getElementById('text-input-modal');
-  const input = document.getElementById('text-input');
-  modal.classList.remove('hidden');
-  input.value = '';
-  input.focus();
+// Start typing text at position
+function startTypingText(worldPos) {
+  state.isTypingText = true;
+  state.currentText = '';
+  state.textWorldPos = worldPos;
+  state.cursorVisible = true;
+
+  // Start cursor blink
+  if (state.cursorBlinkInterval) {
+    clearInterval(state.cursorBlinkInterval);
+  }
+  state.cursorBlinkInterval = setInterval(() => {
+    state.cursorVisible = !state.cursorVisible;
+    state.canvasManager.render();
+  }, 530);
+
+  state.canvasManager.render();
 }
 
-// Close text modal
-function closeTextModal() {
-  document.getElementById('text-input-modal').classList.add('hidden');
+// Handle keyboard input for inline text
+function handleTextKeydown(e) {
+  if (!state.isTypingText) return false;
+
+  // Enter = finish typing
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    finishTypingText();
+    return true;
+  }
+
+  // Escape = cancel typing
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    cancelTypingText();
+    return true;
+  }
+
+  // Backspace = delete last character
+  if (e.key === 'Backspace') {
+    e.preventDefault();
+    state.currentText = state.currentText.slice(0, -1);
+    state.canvasManager.render();
+    return true;
+  }
+
+  // Ignore control keys, function keys, etc.
+  if (e.key.length > 1 && !e.key.startsWith('Arrow')) {
+    return true; // Consume but don't add to text
+  }
+
+  // Arrow keys - ignore for text input
+  if (e.key.startsWith('Arrow')) {
+    return true;
+  }
+
+  // Add typed character (printable characters only)
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    // Limit text length
+    if (state.currentText.length < 100) {
+      state.currentText += e.key;
+      state.canvasManager.render();
+    }
+    return true;
+  }
+
+  return false;
 }
 
-// Submit text
-function submitText() {
-  const input = document.getElementById('text-input');
-  const text = input.value.trim();
+// Finish typing and add text stroke
+function finishTypingText() {
+  if (!state.isTypingText) return;
 
-  if (!text || !state.textWorldPos) {
-    closeTextModal();
-    return;
+  const text = state.currentText.trim();
+
+  if (text && state.textWorldPos) {
+    const fontSize = state.currentWidth * 2;
+    const inkCost = state.canvasManager.addTextStroke(
+      state.textWorldPos.x,
+      state.textWorldPos.y,
+      text,
+      fontSize,
+      state.currentColor,
+      state.userCountry,
+      state.currentFont
+    );
+
+    // Deduct ink
+    if (state.userInk) {
+      state.userInk.inkRemaining -= inkCost;
+      updateInkGauge();
+    }
+
+    resetInactivityTimer();
+    showUndoButton();
   }
 
-  const fontSize = state.currentWidth * 2; // Scale brush size for readable text
-  const inkCost = state.canvasManager.addTextStroke(
-    state.textWorldPos.x,
-    state.textWorldPos.y,
-    text,
-    fontSize,
-    state.currentColor,
-    state.userCountry,
-    state.currentFont
-  );
+  // Clear typing state
+  stopTypingText();
+}
 
-  // Deduct ink
-  if (state.userInk) {
-    state.userInk.inkRemaining -= inkCost;
-    updateInkGauge();
+// Cancel typing without saving
+function cancelTypingText() {
+  stopTypingText();
+}
+
+// Stop typing (cleanup)
+function stopTypingText() {
+  state.isTypingText = false;
+  state.currentText = '';
+  state.textWorldPos = null;
+
+  if (state.cursorBlinkInterval) {
+    clearInterval(state.cursorBlinkInterval);
+    state.cursorBlinkInterval = null;
   }
 
-  resetInactivityTimer();
-  closeTextModal();
-  showUndoButton();
+  state.canvasManager.render();
 }
 
 // Start ink updater (refill over time)
@@ -634,12 +816,20 @@ function startInkUpdater() {
   }, 1000); // Update every second
 }
 
-// Keyboard arrow-key pan (smooth, Excel-style)
+// Keyboard handler
 function setupKeyboard() {
   document.addEventListener('keydown', (e) => {
-    // Ignore if user is typing in a text input
-    if (e.target.tagName === 'INPUT') return;
+    // Ignore if user is typing in a DOM input field
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
+    // Handle inline text input first
+    if (state.isTypingText) {
+      if (handleTextKeydown(e)) {
+        return; // Event was handled by text input
+      }
+    }
+
+    // Arrow key pan (only when not typing)
     let moved = false;
     if (e.key === 'ArrowUp')    { state.arrowKeys.up = true;    moved = true; }
     if (e.key === 'ArrowDown')  { state.arrowKeys.down = true;  moved = true; }
