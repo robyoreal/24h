@@ -212,14 +212,57 @@ export class CanvasManager {
     this.ctx.stroke();
   }
   
+  // Render tile gridlines (always 1px, light gray)
+  renderTileGrid(tileSize = 2000) {
+    this.ctx.strokeStyle = '#dddddd';
+    this.ctx.lineWidth = 1;
+
+    // Calculate visible tile range
+    const viewLeft = this.viewport.x;
+    const viewRight = this.viewport.x + this.canvas.width / this.viewport.zoom;
+    const viewTop = this.viewport.y;
+    const viewBottom = this.viewport.y + this.canvas.height / this.viewport.zoom;
+
+    // Find starting tile coordinates
+    const startTileX = Math.floor(viewLeft / tileSize);
+    const endTileX = Math.ceil(viewRight / tileSize);
+    const startTileY = Math.floor(viewTop / tileSize);
+    const endTileY = Math.ceil(viewBottom / tileSize);
+
+    // Draw vertical lines
+    for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+      const worldX = tileX * tileSize;
+      const screenPos = this.worldToScreen(worldX, 0);
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(screenPos.x, 0);
+      this.ctx.lineTo(screenPos.x, this.canvas.height);
+      this.ctx.stroke();
+    }
+
+    // Draw horizontal lines
+    for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+      const worldY = tileY * tileSize;
+      const screenPos = this.worldToScreen(0, worldY);
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, screenPos.y);
+      this.ctx.lineTo(this.canvas.width, screenPos.y);
+      this.ctx.stroke();
+    }
+  }
+
   // Render entire canvas
   render() {
     // Clear canvas
     this.ctx.fillStyle = '#ffffff';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    
+
+    // Render tile gridlines (under everything)
+    this.renderTileGrid(2000);
+
     const now = Date.now();
-    
+
     // Render all strokes from loaded tiles
     for (const [tileId, tileData] of this.tiles.entries()) {
       if (!tileData.strokes) continue;

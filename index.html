@@ -25,6 +25,57 @@
   <!-- Bottom-Left Toolbar -->
   <div id="bottom-toolbar">
 
+    <!-- Undo Button (conditionally visible) - MOVED TO TOP -->
+    <div id="undo-btn-wrap" class="hidden">
+      <button id="undo-btn" class="circle-btn" title="Undo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 7v6h6M3 13a9 9 0 1 0 2-5.5"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Lock Button (unlock / lock brush / lock movement selector) -->
+    <div id="lock-btn-wrap">
+      <button id="lock-btn" class="circle-btn">
+        <!-- Icon swaps based on active lock mode. Default: unlock -->
+        <svg id="lock-icon-unlock" class="lock-icon active" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+        </svg>
+        <svg id="lock-icon-brush" class="lock-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+          <path d="M12 16v-1"/>
+          <circle cx="12" cy="14" r="0.5" fill="currentColor"/>
+        </svg>
+        <svg id="lock-icon-movement" class="lock-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+          <path d="M12 16h-1m2 0h1"/>
+        </svg>
+      </button>
+      <!-- Arc menu (hidden by default, shown on lock-btn click) -->
+      <div id="lock-arc" class="arc-menu hidden">
+        <button class="arc-btn" data-lock="unlock" title="Unlock - Normal mode">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+          </svg>
+        </button>
+        <button class="arc-btn" data-lock="brush" title="Lock Brush - Multi-touch drawing">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+            <path d="M12 16v-1"/>
+            <circle cx="12" cy="14" r="0.5" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="arc-btn" data-lock="movement" title="Lock Movement - Pan only">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+            <path d="M12 16h-1m2 0h1"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <!-- Tool Button (brush / text / eraser selector) -->
     <div id="tool-btn-wrap">
       <button id="tool-btn" class="circle-btn">
@@ -90,15 +141,6 @@
         </svg>
         <span id="ink-gauge-label">100%</span>
       </div>
-    </div>
-
-    <!-- Undo Button (conditionally visible) -->
-    <div id="undo-btn-wrap" class="hidden">
-      <button id="undo-btn" class="circle-btn" title="Undo">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 7v6h6M3 13a9 9 0 1 0 2-5.5"/>
-        </svg>
-      </button>
     </div>
 
   </div>

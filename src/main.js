@@ -56,7 +56,14 @@ const state = {
   dialDragging: false,         // true while user drags the width dial
   dialStartY: 0,               // mouseY/touchY at drag start
   dialStartWidth: 0,           // currentWidth at drag start
-  currentStrokeWasFlushed: false // tracks if current stroke was already flushed mid-draw
+  currentStrokeWasFlushed: false, // tracks if current stroke was already flushed mid-draw
+
+  // Lock mode state
+  currentLockMode: 'unlock',   // 'unlock', 'brush', or 'movement'
+  multiTouchStrokes: new Map(), // Map<touchId, strokeInfo> for multi-touch drawing
+  doubleTapTimer: null,        // timer for detecting double-tap
+  doubleTapPos: null,          // position of first tap
+  savedZoom: 1                 // saved zoom level for toggle
 };
 
 // Make state accessible to CanvasManager
@@ -102,6 +109,8 @@ async function init() {
   // Initialize UI state
   updateColorBtnSwatch();
   updateToolDependentControls();
+  updateLockIcon();
+  updateLockModeUI();
 
   // Load initial tiles
   if (isConfigured) {
@@ -275,6 +284,29 @@ function setupBottomToolbar() {
     });
   });
 
+  // --- Lock button & arc ---
+  const lockBtn = document.getElementById('lock-btn');
+  const lockArc = document.getElementById('lock-arc');
+
+  lockBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    lockArc.classList.toggle('hidden');
+    // Close other arcs if open
+    toolArc.classList.add('hidden');
+    document.getElementById('color-arc').classList.add('hidden');
+    document.getElementById('font-arc').classList.add('hidden');
+  });
+
+  lockArc.querySelectorAll('.arc-btn[data-lock]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.currentLockMode = btn.dataset.lock;
+      updateLockIcon();
+      updateLockModeUI();
+      lockArc.classList.add('hidden');
+    });
+  });
+
   // --- Color button & arc ---
   const colorBtn = document.getElementById('color-btn');
   const colorArc = document.getElementById('color-arc');
@@ -351,6 +383,7 @@ function setupBottomToolbar() {
     toolArc.classList.add('hidden');
     colorArc.classList.add('hidden');
     fontArc.classList.add('hidden');
+    lockArc.classList.add('hidden');
   });
 }
 
@@ -385,6 +418,37 @@ function updateColorBtnSwatch() {
   const swatch = document.getElementById('color-btn-swatch');
   swatch.classList.remove('eraser-mode');
   swatch.style.background = state.currentColor;
+}
+
+function updateLockIcon() {
+  // Hide all lock icons, show the one matching state.currentLockMode
+  document.querySelectorAll('.lock-icon').forEach(icon => icon.classList.remove('active'));
+  document.getElementById('lock-icon-' + state.currentLockMode).classList.add('active');
+}
+
+function updateLockModeUI() {
+  const toolBtnWrap = document.getElementById('tool-btn-wrap');
+  const colorBtnWrap = document.getElementById('color-btn-wrap');
+  const fontBtnWrap = document.getElementById('font-btn-wrap');
+  const widthDialWrap = document.getElementById('width-dial-wrap');
+  const container = document.getElementById('canvas-container');
+
+  if (state.currentLockMode === 'movement') {
+    // Hide all drawing controls
+    toolBtnWrap.classList.add('hidden');
+    colorBtnWrap.classList.add('hidden');
+    fontBtnWrap.classList.add('hidden');
+    widthDialWrap.classList.add('hidden');
+    // Change cursor to hand
+    container.classList.add('lock-movement');
+  } else {
+    // Show controls
+    toolBtnWrap.classList.remove('hidden');
+    widthDialWrap.classList.remove('hidden');
+    container.classList.remove('lock-movement');
+    // Update tool-dependent controls (color/font based on current tool)
+    updateToolDependentControls();
+  }
 }
 
 // Update visibility of tool-dependent controls (font button, color button)
@@ -476,11 +540,26 @@ function handleMouseDown(e) {
   const screenX = e.clientX - rect.left;
   const screenY = e.clientY - rect.top;
 
-  if (e.button === 1 || e.ctrlKey || e.metaKey) {
-    // Middle mouse or Ctrl+click = pan
+  // Lock Movement Mode - click/drag to pan only
+  if (state.currentLockMode === 'movement') {
     state.isPanning = true;
     state.lastMousePos = { x: e.clientX, y: e.clientY };
+    return;
+  }
+
+  if (e.button === 1 || e.ctrlKey || e.metaKey) {
+    // Middle mouse or Ctrl+click = pan (disabled in lock brush mode)
+    if (state.currentLockMode !== 'brush') {
+      state.isPanning = true;
+      state.lastMousePos = { x: e.clientX, y: e.clientY };
+    }
   } else if (state.currentTool === 'brush' || state.currentTool === 'eraser') {
+    // Check ink before starting (fix 0% ink bug)
+    const currentInk = state.userInk ? calculateCurrentInk(state.userInk, INK_REFILL_RATE) : 0;
+    if (state.currentTool !== 'eraser' && currentInk <= 0) {
+      return; // No ink, block drawing
+    }
+
     // If typing text, finish it first
     if (state.isTypingText) {
       finishTypingText();
@@ -516,10 +595,14 @@ function handleMouseMove(e) {
   const screenY = e.clientY - rect.top;
 
   if (state.isPanning) {
-    const dx = e.clientX - state.lastMousePos.x;
-    const dy = e.clientY - state.lastMousePos.y;
-    state.canvasManager.pan(dx, dy);
-    state.lastMousePos = { x: e.clientX, y: e.clientY };
+    // Allow panning in lock movement mode or normal unlock mode
+    // Disable panning in lock brush mode (unless it's middle-click/ctrl-click, which should also be disabled)
+    if (state.currentLockMode !== 'brush') {
+      const dx = e.clientX - state.lastMousePos.x;
+      const dy = e.clientY - state.lastMousePos.y;
+      state.canvasManager.pan(dx, dy);
+      state.lastMousePos = { x: e.clientX, y: e.clientY };
+    }
   } else if (state.canvasManager.isDrawing) {
     const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
     const inkCost = state.canvasManager.continueStroke(worldPos.x, worldPos.y, state.currentWidth);
@@ -554,6 +637,12 @@ function handleMouseUp(e) {
 // Wheel handler (zoom)
 function handleWheel(e) {
   e.preventDefault();
+
+  // Disable zoom in lock brush mode
+  if (state.currentLockMode === 'brush') {
+    return;
+  }
+
   const rect = e.currentTarget.getBoundingClientRect();
   const centerX = e.clientX - rect.left;
   const centerY = e.clientY - rect.top;
@@ -561,21 +650,105 @@ function handleWheel(e) {
   state.canvasManager.zoom(e.deltaY, centerX, centerY);
 }
 
-// Touch handlers (with pinch zoom + two-finger pan support)
+// Touch handlers (with pinch zoom + two-finger pan support + multi-touch drawing)
 let lastTouches = [];        // array of touch objects from previous frame
-let touchMode = null;        // 'draw' | 'gesture' | 'text'
+let touchMode = null;        // 'draw' | 'gesture' | 'text' | 'pan'
 
 function handleTouchStart(e) {
   e.preventDefault();
+  const rect = e.currentTarget.getBoundingClientRect();
+
+  // Lock Movement Mode - pan only
+  if (state.currentLockMode === 'movement') {
+    if (e.touches.length === 1) {
+      touchMode = 'pan';
+      lastTouches = Array.from(e.touches);
+
+      // Check for double-tap zoom toggle
+      const touch = e.touches[0];
+      const now = Date.now();
+      if (state.doubleTapTimer && state.doubleTapPos) {
+        const dx = touch.clientX - state.doubleTapPos.x;
+        const dy = touch.clientY - state.doubleTapPos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // If second tap is within 300ms and 50px of first tap
+        if (now - state.doubleTapTimer < 300 && dist < 50) {
+          // Toggle zoom between current and 1.0
+          if (state.canvasManager.viewport.zoom !== state.savedZoom) {
+            state.savedZoom = state.canvasManager.viewport.zoom;
+            state.canvasManager.viewport.zoom = 1.0;
+          } else {
+            state.canvasManager.viewport.zoom = state.savedZoom || 2.0;
+          }
+          state.canvasManager.render();
+          state.doubleTapTimer = null;
+          state.doubleTapPos = null;
+          return;
+        }
+      }
+
+      state.doubleTapTimer = now;
+      state.doubleTapPos = { x: touch.clientX, y: touch.clientY };
+    } else if (e.touches.length === 2) {
+      touchMode = 'gesture';
+      lastTouches = Array.from(e.touches);
+    }
+    return;
+  }
+
+  // Lock Brush Mode - multi-touch drawing
+  if (state.currentLockMode === 'brush' && (state.currentTool === 'brush' || state.currentTool === 'eraser')) {
+    // If typing text, finish it first
+    if (state.isTypingText) {
+      finishTypingText();
+    }
+
+    // Check ink before allowing any new touches
+    const currentInk = state.userInk ? calculateCurrentInk(state.userInk, INK_REFILL_RATE) : 0;
+    if (state.currentTool !== 'eraser' && currentInk <= 0) {
+      return; // No ink, block drawing
+    }
+
+    touchMode = 'multi-draw';
+
+    // Start stroke for each new touch
+    for (const touch of e.touches) {
+      if (!state.multiTouchStrokes.has(touch.identifier)) {
+        const screenX = touch.clientX - rect.left;
+        const screenY = touch.clientY - rect.top;
+        const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
+        const drawColor = state.currentTool === 'eraser' ? '#FFFFFF' : state.currentColor;
+
+        state.multiTouchStrokes.set(touch.identifier, {
+          points: [worldPos.x, worldPos.y, state.currentWidth],
+          color: drawColor,
+          timestamp: Date.now(),
+          country: state.userCountry,
+          inkUsed: 0
+        });
+      }
+    }
+
+    lastTouches = Array.from(e.touches);
+    return;
+  }
+
+  // Normal Mode - original behavior
   lastTouches = Array.from(e.touches);
 
   if (e.touches.length === 1) {
     const touch = e.touches[0];
-    const rect = e.currentTarget.getBoundingClientRect();
     const screenX = touch.clientX - rect.left;
     const screenY = touch.clientY - rect.top;
 
     if (state.currentTool === 'brush' || state.currentTool === 'eraser') {
+      // Check ink before starting
+      const currentInk = state.userInk ? calculateCurrentInk(state.userInk, INK_REFILL_RATE) : 0;
+      if (state.currentTool !== 'eraser' && currentInk <= 0) {
+        return; // No ink, block drawing
+      }
+
       // If typing text, finish it first
       if (state.isTypingText) {
         finishTypingText();
@@ -612,9 +785,66 @@ function handleTouchStart(e) {
 
 function handleTouchMove(e) {
   e.preventDefault();
+  const rect = e.currentTarget.getBoundingClientRect();
+
+  // Lock Movement Mode - pan only
+  if (touchMode === 'pan' && e.touches.length === 1) {
+    const touch = e.touches[0];
+    const lastTouch = lastTouches[0];
+    if (!lastTouch) { lastTouches = Array.from(e.touches); return; }
+
+    const dx = touch.clientX - lastTouch.clientX;
+    const dy = touch.clientY - lastTouch.clientY;
+    state.canvasManager.pan(dx, dy);
+
+    lastTouches = Array.from(e.touches);
+    return;
+  }
+
+  // Multi-touch drawing mode
+  if (touchMode === 'multi-draw') {
+    // Update each active touch's stroke
+    for (const touch of e.touches) {
+      const stroke = state.multiTouchStrokes.get(touch.identifier);
+      if (!stroke) continue;
+
+      const screenX = touch.clientX - rect.left;
+      const screenY = touch.clientY - rect.top;
+      const worldPos = state.canvasManager.screenToWorld(screenX, screenY);
+
+      const len = stroke.points.length;
+      const lastX = stroke.points[len - 3];
+      const lastY = stroke.points[len - 2];
+      const lastWidth = stroke.points[len - 1];
+
+      const dx = worldPos.x - lastX;
+      const dy = worldPos.y - lastY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      // Calculate ink cost
+      const avgWidth = (state.currentWidth + lastWidth) / 2;
+      const inkCost = distance * avgWidth;
+
+      stroke.points.push(worldPos.x, worldPos.y, state.currentWidth);
+      stroke.inkUsed += inkCost;
+
+      // Deduct ink (shared across all fingers)
+      if (state.currentTool !== 'eraser' && state.userInk) {
+        state.userInk.inkRemaining -= inkCost;
+      }
+    }
+
+    // Render all active strokes
+    renderMultiTouchStrokes();
+    updateInkGauge();
+
+    lastTouches = Array.from(e.touches);
+    return;
+  }
+
+  // Normal single-touch drawing
   if (e.touches.length === 1 && touchMode === 'draw') {
     const touch = e.touches[0];
-    const rect = e.currentTarget.getBoundingClientRect();
     const screenX = touch.clientX - rect.left;
     const screenY = touch.clientY - rect.top;
 
@@ -634,8 +864,6 @@ function handleTouchMove(e) {
     const l0 = lastTouches[0];
     const l1 = lastTouches[1];
     if (!l0 || !l1) { lastTouches = Array.from(e.touches); return; }
-
-    const rect = e.currentTarget.getBoundingClientRect();
 
     // Calculate midpoints
     const prevMidX = (l0.clientX + l1.clientX) / 2;
@@ -678,13 +906,62 @@ function handleTouchMove(e) {
 }
 
 function handleTouchEnd(e) {
+  // Multi-touch drawing mode - finalize lifted fingers
+  if (touchMode === 'multi-draw') {
+    const remainingTouchIds = new Set(Array.from(e.touches).map(t => t.identifier));
+
+    // Find which touches ended
+    for (const [touchId, stroke] of state.multiTouchStrokes.entries()) {
+      if (!remainingTouchIds.has(touchId)) {
+        // This touch ended - finalize its stroke
+        if (stroke.points.length > 3) {
+          state.canvasManager.localStrokes.push(stroke);
+        }
+        state.multiTouchStrokes.delete(touchId);
+      }
+    }
+
+    // If all touches ended, show undo and reset timer
+    if (state.multiTouchStrokes.size === 0) {
+      resetInactivityTimer();
+      showUndoButton();
+      touchMode = null;
+      state.canvasManager.render();
+    } else {
+      // Some fingers still down, continue
+      renderMultiTouchStrokes();
+    }
+
+    lastTouches = Array.from(e.touches);
+    return;
+  }
+
+  // Normal single-touch drawing
   if (touchMode === 'draw' && state.canvasManager.isDrawing) {
     state.canvasManager.endStroke();
     resetInactivityTimer();
     showUndoButton();
   }
-  touchMode = null;
-  lastTouches = [];
+
+  // Clear state when all touches end
+  if (e.touches.length === 0) {
+    touchMode = null;
+    lastTouches = [];
+  } else {
+    lastTouches = Array.from(e.touches);
+  }
+}
+
+// Render multi-touch strokes
+function renderMultiTouchStrokes() {
+  // Full render to clear and redraw everything
+  state.canvasManager.render();
+
+  // Render each active multi-touch stroke on top
+  const now = Date.now();
+  for (const stroke of state.multiTouchStrokes.values()) {
+    state.canvasManager.renderStroke(stroke, now);
+  }
 }
 
 // ===== Inline Text Input =====

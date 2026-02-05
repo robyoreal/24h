@@ -29,7 +29,8 @@ body {
 #color-btn-wrap,
 #font-btn-wrap,
 #ink-gauge-wrap,
-#undo-btn-wrap {
+#undo-btn-wrap,
+#lock-btn-wrap {
   position: relative;
 }
 
@@ -75,6 +76,18 @@ body {
   pointer-events: none;
 }
 .tool-icon.active {
+  opacity: 1;
+  position: relative; /* only the active one participates in layout */
+}
+
+/* ---- Lock Icon Switching ---- */
+.lock-icon {
+  position: absolute;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.lock-icon.active {
   opacity: 1;
   position: relative; /* only the active one participates in layout */
 }
@@ -192,6 +205,15 @@ body {
   background: #ffffff;
   overflow: hidden;
   cursor: crosshair;
+}
+
+/* Cursor change for lock movement mode */
+#canvas-container.lock-movement {
+  cursor: grab;
+}
+
+#canvas-container.lock-movement:active {
+  cursor: grabbing;
 }
 
 #main-canvas {
