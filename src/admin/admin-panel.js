@@ -120,6 +120,7 @@ async function showAdminPanel() {
   if (!currentConfig) {
     currentConfig = {
       maintenanceMode: false,
+      unlimitedInk: false,
       maxInkPerUser: 250000,
       inkRefillRate: 2.78,
       fadeDuration: 86400000,
@@ -176,6 +177,7 @@ function populateConfigForm() {
   document.getElementById('config-fade-duration').value = currentConfig.fadeDuration / 3600000;
   document.getElementById('config-inactivity').value = currentConfig.inactivityTimeout / 1000;
   document.getElementById('config-maintenance-mode').checked = currentConfig.maintenanceMode;
+  document.getElementById('config-unlimited-ink').checked = currentConfig.unlimitedInk || false;
   document.getElementById('config-allow-text').checked = currentConfig.allowText;
   document.getElementById('config-allow-eraser').checked = currentConfig.allowEraser;
 }
@@ -409,6 +411,7 @@ async function handleSaveConfig() {
   currentConfig.fadeDuration = parseInt(document.getElementById('config-fade-duration').value) * 3600000;
   currentConfig.inactivityTimeout = parseInt(document.getElementById('config-inactivity').value) * 1000;
   currentConfig.maintenanceMode = document.getElementById('config-maintenance-mode').checked;
+  currentConfig.unlimitedInk = document.getElementById('config-unlimited-ink').checked;
   currentConfig.allowText = document.getElementById('config-allow-text').checked;
   currentConfig.allowEraser = document.getElementById('config-allow-eraser').checked;
 

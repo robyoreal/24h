@@ -27,6 +27,7 @@ export async function loadAdminConfig() {
       // Create default config if doesn't exist
       const defaultConfig = {
         maintenanceMode: false,
+        unlimitedInk: false,
         maxInkPerUser: 250000,
         inkRefillRate: 2.78,
         fadeDuration: 86400000,

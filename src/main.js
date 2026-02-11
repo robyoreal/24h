@@ -35,6 +35,7 @@ const state = {
   userIpHash: null,
   userCountry: null,
   userInk: null,
+  adminConfig: null,
   inkInterval: null,
   inactivityTimer: null,
   isPanning: false,
@@ -130,6 +131,7 @@ async function init() {
 function applyAdminConfig(config) {
   // Store config globally for access by other functions
   window.appAdminConfig = config;
+  state.adminConfig = config;
 
   if (config.maintenanceMode) {
     // Disable drawing
@@ -372,7 +374,9 @@ function setupBottomToolbar() {
   document.getElementById('undo-btn').addEventListener('click', () => {
     const removed = state.canvasManager.undoLastStroke();
     if (removed) {
-      state.userInk.inkRemaining += removed.inkUsed;
+      if (!state.adminConfig?.unlimitedInk) {
+        state.userInk.inkRemaining += removed.inkUsed;
+      }
       updateInkGauge();
       hideUndoButton();
     }
@@ -483,6 +487,17 @@ function updateFontBtnLabel() {
 
 function updateInkGauge() {
   if (!state.userInk) return;
+
+  // Check if unlimited ink mode is enabled
+  if (state.adminConfig?.unlimitedInk) {
+    const arc = document.getElementById('ink-gauge-arc');
+    const circumference = 113.097;
+    arc.style.strokeDasharray = circumference;
+    arc.style.strokeDashoffset = 0; // Full circle
+    document.getElementById('ink-gauge-label').textContent = '∞';
+    return;
+  }
+
   const currentInk = calculateCurrentInk(state.userInk, INK_REFILL_RATE);
   const pct = Math.max(0, Math.min(1, currentInk / 250000));
 
@@ -608,7 +623,7 @@ function handleMouseMove(e) {
     const inkCost = state.canvasManager.continueStroke(worldPos.x, worldPos.y, state.currentWidth);
 
     // Eraser costs no ink
-    if (state.currentTool !== 'eraser' && state.userInk) {
+    if (state.currentTool !== 'eraser' && state.userInk && !state.adminConfig?.unlimitedInk) {
       state.userInk.inkRemaining -= inkCost;
       updateInkGauge();
     }
@@ -829,7 +844,7 @@ function handleTouchMove(e) {
       stroke.inkUsed += inkCost;
 
       // Deduct ink (shared across all fingers)
-      if (state.currentTool !== 'eraser' && state.userInk) {
+      if (state.currentTool !== 'eraser' && state.userInk && !state.adminConfig?.unlimitedInk) {
         state.userInk.inkRemaining -= inkCost;
       }
     }
@@ -853,7 +868,7 @@ function handleTouchMove(e) {
       const inkCost = state.canvasManager.continueStroke(worldPos.x, worldPos.y, state.currentWidth);
 
       // Eraser costs no ink
-      if (state.currentTool !== 'eraser' && state.userInk) {
+      if (state.currentTool !== 'eraser' && state.userInk && !state.adminConfig?.unlimitedInk) {
         state.userInk.inkRemaining -= inkCost;
         updateInkGauge();
       }
@@ -1054,7 +1069,7 @@ function finishTypingText() {
     );
 
     // Deduct ink
-    if (state.userInk) {
+    if (state.userInk && !state.adminConfig?.unlimitedInk) {
       state.userInk.inkRemaining -= inkCost;
       updateInkGauge();
     }
@@ -1089,6 +1104,11 @@ function stopTypingText() {
 // Start ink updater (refill over time)
 function startInkUpdater() {
   state.inkInterval = setInterval(() => {
+    // Update the actual ink value based on refill rate
+    if (state.userInk && !state.adminConfig?.unlimitedInk) {
+      const currentInk = calculateCurrentInk(state.userInk, INK_REFILL_RATE);
+      state.userInk.inkRemaining = currentInk;
+    }
     updateInkGauge();
   }, 1000); // Update every second
 }
