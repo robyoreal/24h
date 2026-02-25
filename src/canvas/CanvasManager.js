@@ -324,8 +324,13 @@ export class CanvasManager {
   renderStroke(stroke, now) {
     // Calculate opacity based on age
     const age = now - stroke.timestamp;
-    const opacity = Math.max(0, 1 - (age / FADE_DURATION));
-    
+    const isWhite = stroke.color && stroke.color.toUpperCase() === '#FFFFFF';
+    // White strokes (brush white or eraser) don't fade — they stay fully opaque
+    // until the 24h mark, then disappear instantly
+    const opacity = isWhite
+      ? (age >= FADE_DURATION ? 0 : 1)
+      : Math.max(0, 1 - (age / FADE_DURATION));
+
     if (opacity <= 0) return; // Don't render fully faded strokes
     
     if (stroke.type === 'text') {
