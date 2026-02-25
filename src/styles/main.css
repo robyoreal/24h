@@ -1070,7 +1070,7 @@ body {
   transform: scale(0.96);
 }
 
-/* Admin panel textarea for splash description */
+/* Admin panel textareas */
 #config-splash-desc-id,
 #config-splash-desc-en {
   width: 100%;
@@ -1078,6 +1078,19 @@ body {
   resize: vertical;
   font-family: inherit;
   font-size: 13px;
+}
+
+#config-icon-tool-brush,
+#config-icon-tool-text,
+#config-icon-tool-eraser,
+#config-icon-lock-unlock,
+#config-icon-lock-brush,
+#config-icon-lock-movement {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 11px;
 }
 
 @media (max-width: 600px) {

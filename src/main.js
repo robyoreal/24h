@@ -164,6 +164,7 @@ function applyAdminConfig(config) {
 
 // Replace a toolbar SVG icon with a custom image URL
 function applyButtonIcons(buttonIcons) {
+  if (!buttonIcons) return;
   const iconMap = {
     toolBrush:    'tool-icon-brush',
     toolText:     'tool-icon-text',
@@ -173,13 +174,24 @@ function applyButtonIcons(buttonIcons) {
     lockMovement: 'lock-icon-movement',
   };
   for (const [key, elemId] of Object.entries(iconMap)) {
-    const url = buttonIcons[key];
+    const svgCode = (buttonIcons[key] || '').trim();
     const el = document.getElementById(elemId);
-    if (!el) continue;
-    if (url) {
-      // Replace SVG inner content with an SVG <image> element,
-      // keeping the <svg> wrapper (which carries CSS classes for opacity-switching)
-      el.innerHTML = `<image href="${url}" x="0" y="0" width="20" height="20" preserveAspectRatio="xMidYMid meet"/>`;
+    if (!el || !svgCode) continue;
+
+    if (svgCode.toLowerCase().startsWith('<svg')) {
+      // Full <svg> element pasted — extract inner content and copy viewBox
+      const tmp = document.createElement('div');
+      tmp.innerHTML = svgCode;
+      const innerSvg = tmp.querySelector('svg');
+      if (innerSvg) {
+        if (innerSvg.hasAttribute('viewBox')) {
+          el.setAttribute('viewBox', innerSvg.getAttribute('viewBox'));
+        }
+        el.innerHTML = innerSvg.innerHTML;
+      }
+    } else {
+      // Inner SVG elements pasted (paths, circles, rects, etc.)
+      el.innerHTML = svgCode;
     }
   }
 }
