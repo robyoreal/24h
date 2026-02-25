@@ -198,6 +198,17 @@ function applyButtonIcons(buttonIcons) {
     applySvg(document.getElementById(mainId), svgCode);
     applySvg(document.querySelector(arcSel), svgCode);
   }
+
+  // Undo button — single SVG directly inside #undo-btn, no arc
+  const undoCode = (buttonIcons.undo || '').trim();
+  if (undoCode) applySvg(document.querySelector('#undo-btn svg'), undoCode);
+
+  // Admin button — contains emoji text, no SVG; replace innerHTML with custom SVG
+  const adminCode = (buttonIcons.admin || '').trim();
+  if (adminCode) {
+    const adminBtn = document.getElementById('admin-access-btn');
+    if (adminBtn) adminBtn.innerHTML = adminCode;
+  }
 }
 
 // First-time user splash screen
@@ -1107,6 +1118,13 @@ function startTypingText(worldPos) {
   }, 530);
 
   state.canvasManager.render();
+
+  // Focus hidden input to trigger mobile virtual keyboard
+  const mobileInput = document.getElementById('mobile-text-input');
+  if (mobileInput) {
+    mobileInput.value = '';
+    mobileInput.focus();
+  }
 }
 
 // Handle keyboard input for inline text
@@ -1208,6 +1226,9 @@ function stopTypingText() {
   }
 
   state.canvasManager.render();
+
+  // Dismiss mobile keyboard
+  document.getElementById('mobile-text-input')?.blur();
 }
 
 // Start ink updater (refill over time)
@@ -1224,9 +1245,18 @@ function startInkUpdater() {
 
 // Keyboard handler
 function setupKeyboard() {
+  // Mobile keyboard: sync hidden input value → state.currentText
+  const mobileInput = document.getElementById('mobile-text-input');
+  mobileInput?.addEventListener('input', (e) => {
+    if (!state.isTypingText) return;
+    state.currentText = e.target.value;
+    state.canvasManager.render();
+  });
+
   document.addEventListener('keydown', (e) => {
-    // Ignore if user is typing in a DOM input field
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    // Ignore DOM input fields, but allow our hidden mobile-text-input through
+    const isMobileInput = e.target.id === 'mobile-text-input';
+    if (!isMobileInput && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
 
     // Handle inline text input first
     if (state.isTypingText) {

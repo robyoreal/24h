@@ -1085,7 +1085,9 @@ body {
 #config-icon-tool-eraser,
 #config-icon-lock-unlock,
 #config-icon-lock-brush,
-#config-icon-lock-movement {
+#config-icon-lock-movement,
+#config-icon-undo,
+#config-icon-admin {
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
