@@ -72,6 +72,9 @@ window.appState = state;
 
 // Initialize app
 async function init() {
+  // Show splash screen for first-time users (synchronous, no dependencies)
+  initSplashScreen();
+
   // Initialize Firebase
   const firebaseReady = initFirebase();
 
@@ -152,6 +155,123 @@ function applyAdminConfig(config) {
     // Re-initialize font arc menu
     initFontArc(config.fonts);
   }
+
+  // Apply button icon overrides
+  if (config.buttonIcons) {
+    applyButtonIcons(config.buttonIcons);
+  }
+}
+
+// Replace a toolbar SVG icon with a custom image URL
+function applyButtonIcons(buttonIcons) {
+  if (!buttonIcons) return;
+
+  function applySvg(el, svgCode) {
+    if (!el || !svgCode.trim()) return;
+    const code = svgCode.trim();
+    if (code.toLowerCase().startsWith('<svg')) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = code;
+      const innerSvg = tmp.querySelector('svg');
+      if (innerSvg) {
+        if (innerSvg.hasAttribute('viewBox')) el.setAttribute('viewBox', innerSvg.getAttribute('viewBox'));
+        el.innerHTML = innerSvg.innerHTML;
+      }
+    } else {
+      el.innerHTML = code;
+    }
+  }
+
+  // Each entry: [iconKey, mainIconId, arcButtonSelector]
+  const targets = [
+    ['toolBrush',    'tool-icon-brush',    '#tool-arc [data-tool="brush"] svg'],
+    ['toolText',     'tool-icon-text',     '#tool-arc [data-tool="text"] svg'],
+    ['toolEraser',   'tool-icon-eraser',   '#tool-arc [data-tool="eraser"] svg'],
+    ['lockUnlock',   'lock-icon-unlock',   '#lock-arc [data-lock="unlock"] svg'],
+    ['lockBrush',    'lock-icon-brush',    '#lock-arc [data-lock="brush"] svg'],
+    ['lockMovement', 'lock-icon-movement', '#lock-arc [data-lock="movement"] svg'],
+  ];
+
+  for (const [key, mainId, arcSel] of targets) {
+    const svgCode = (buttonIcons[key] || '').trim();
+    if (!svgCode) continue;
+    applySvg(document.getElementById(mainId), svgCode);
+    applySvg(document.querySelector(arcSel), svgCode);
+  }
+
+  // Undo button — single SVG directly inside #undo-btn, no arc
+  const undoCode = (buttonIcons.undo || '').trim();
+  if (undoCode) applySvg(document.querySelector('#undo-btn svg'), undoCode);
+
+  // Admin button — contains emoji text, no SVG; replace innerHTML with custom SVG
+  const adminCode = (buttonIcons.admin || '').trim();
+  if (adminCode) {
+    const adminBtn = document.getElementById('admin-access-btn');
+    if (adminBtn) adminBtn.innerHTML = adminCode;
+  }
+}
+
+// First-time user splash screen
+const SPLASH_DEFAULTS = {
+  id: {
+    title: 'Tembok 24 Jam',
+    desc: 'Selamat datang di kanvas bersama tanpa batas! Di sini kamu bisa menggambar dan menulis bersama orang-orang dari seluruh dunia. Semua gambar akan menghilang dalam 24 jam — seperti kapur di papan tulis. Gunakan tinta dengan bijak dan biarkan kreativitasmu mengalir!',
+  },
+  en: {
+    title: '24 Hours Wall',
+    desc: 'Welcome to the infinite collaborative canvas! Here you can draw and write together with people from around the world. All drawings disappear after 24 hours — like chalk on a blackboard. Use your ink wisely and let your creativity flow!',
+  },
+};
+
+function initSplashScreen() {
+  const VISITED_KEY = '24hw_visited';
+  const splash = document.getElementById('splash-screen');
+  if (!splash) return;
+
+  if (localStorage.getItem(VISITED_KEY) === 'true') {
+    return; // Already visited — keep hidden (default)
+  }
+
+  // Show splash
+  splash.classList.remove('hidden');
+
+  // Apply any admin-configured text over defaults
+  function applyContent() {
+    const cfg = state.adminConfig?.splashContent || {};
+    const idSection = document.getElementById('splash-id');
+    const enSection = document.getElementById('splash-en');
+    idSection.querySelector('h1').textContent = cfg.titleId || SPLASH_DEFAULTS.id.title;
+    document.getElementById('splash-desc-id').textContent = cfg.descId || SPLASH_DEFAULTS.id.desc;
+    enSection.querySelector('h1').textContent = cfg.titleEn || SPLASH_DEFAULTS.en.title;
+    document.getElementById('splash-desc-en').textContent = cfg.descEn || SPLASH_DEFAULTS.en.desc;
+  }
+  applyContent();
+
+  // Language toggle
+  let currentLang = 'id';
+  const langBtn = document.getElementById('splash-lang-toggle');
+  langBtn.addEventListener('click', () => {
+    if (currentLang === 'id') {
+      currentLang = 'en';
+      document.getElementById('splash-id').classList.remove('active');
+      document.getElementById('splash-en').classList.add('active');
+      langBtn.textContent = 'Bahasa Indonesia';
+    } else {
+      currentLang = 'id';
+      document.getElementById('splash-en').classList.remove('active');
+      document.getElementById('splash-id').classList.add('active');
+      langBtn.textContent = 'English';
+    }
+  });
+
+  // Dismiss
+  function dismissSplash() {
+    localStorage.setItem(VISITED_KEY, 'true');
+    splash.classList.add('hidden');
+  }
+  splash.querySelectorAll('.splash-ok').forEach(btn => {
+    btn.addEventListener('click', dismissSplash);
+  });
 }
 
 // Initialize/re-initialize color palette
@@ -998,6 +1118,13 @@ function startTypingText(worldPos) {
   }, 530);
 
   state.canvasManager.render();
+
+  // Focus hidden input to trigger mobile virtual keyboard
+  const mobileInput = document.getElementById('mobile-text-input');
+  if (mobileInput) {
+    mobileInput.value = '';
+    mobileInput.focus();
+  }
 }
 
 // Handle keyboard input for inline text
@@ -1099,6 +1226,9 @@ function stopTypingText() {
   }
 
   state.canvasManager.render();
+
+  // Dismiss mobile keyboard
+  document.getElementById('mobile-text-input')?.blur();
 }
 
 // Start ink updater (refill over time)
@@ -1115,9 +1245,18 @@ function startInkUpdater() {
 
 // Keyboard handler
 function setupKeyboard() {
+  // Mobile keyboard: sync hidden input value → state.currentText
+  const mobileInput = document.getElementById('mobile-text-input');
+  mobileInput?.addEventListener('input', (e) => {
+    if (!state.isTypingText) return;
+    state.currentText = e.target.value;
+    state.canvasManager.render();
+  });
+
   document.addEventListener('keydown', (e) => {
-    // Ignore if user is typing in a DOM input field
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    // Ignore DOM input fields, but allow our hidden mobile-text-input through
+    const isMobileInput = e.target.id === 'mobile-text-input';
+    if (!isMobileInput && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
 
     // Handle inline text input first
     if (state.isTypingText) {

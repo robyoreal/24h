@@ -259,6 +259,70 @@
           <p class="admin-note">💡 Click font to edit • Click ✕ to remove • First font = default for text tool</p>
         </div>
 
+        <!-- Button Icons Manager -->
+        <div class="admin-section">
+          <h4>🖼️ Button Icons</h4>
+          <p class="admin-note">💡 Paste SVG code to replace a button icon. Accepts full <code>&lt;svg&gt;</code> or just inner elements like <code>&lt;path d="..."/&gt;</code>. Leave blank to use the default icon.</p>
+          <div class="admin-form">
+            <label>
+              Brush Icon (SVG code)
+              <textarea id="config-icon-tool-brush" rows="3" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot;&gt;&lt;path d=&quot;...&quot;/&gt;&lt;/svg&gt;"></textarea>
+            </label>
+            <label>
+              Text Icon (SVG code)
+              <textarea id="config-icon-tool-text" rows="3" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot;&gt;&lt;path d=&quot;...&quot;/&gt;&lt;/svg&gt;"></textarea>
+            </label>
+            <label>
+              Eraser Icon (SVG code)
+              <textarea id="config-icon-tool-eraser" rows="3" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot;&gt;&lt;path d=&quot;...&quot;/&gt;&lt;/svg&gt;"></textarea>
+            </label>
+            <label>
+              Unlock Icon (SVG code)
+              <textarea id="config-icon-lock-unlock" rows="3" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot;&gt;&lt;path d=&quot;...&quot;/&gt;&lt;/svg&gt;"></textarea>
+            </label>
+            <label>
+              Brush Lock Icon (SVG code)
+              <textarea id="config-icon-lock-brush" rows="3" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot;&gt;&lt;path d=&quot;...&quot;/&gt;&lt;/svg&gt;"></textarea>
+            </label>
+            <label>
+              Movement Lock Icon (SVG code)
+              <textarea id="config-icon-lock-movement" rows="3" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot;&gt;&lt;path d=&quot;...&quot;/&gt;&lt;/svg&gt;"></textarea>
+            </label>
+            <label>
+              Undo Icon (SVG code)
+              <textarea id="config-icon-undo" rows="3" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot;&gt;&lt;path d=&quot;...&quot;/&gt;&lt;/svg&gt;"></textarea>
+            </label>
+            <label>
+              Admin Panel Icon (SVG code)
+              <textarea id="config-icon-admin" rows="3" placeholder="&lt;svg viewBox=&quot;0 0 24 24&quot;&gt;&lt;path d=&quot;...&quot;/&gt;&lt;/svg&gt;"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <!-- Splash Screen Content -->
+        <div class="admin-section">
+          <h4>💬 Splash Screen</h4>
+          <p class="admin-note">Content shown to first-time visitors. Leave blank to use default text.</p>
+          <div class="admin-form">
+            <label>
+              Title (Bahasa Indonesia)
+              <input type="text" id="config-splash-title-id" placeholder="Tembok 24 Jam">
+            </label>
+            <label>
+              Description (Bahasa Indonesia)
+              <textarea id="config-splash-desc-id" rows="3" placeholder="Default description..."></textarea>
+            </label>
+            <label>
+              Title (English)
+              <input type="text" id="config-splash-title-en" placeholder="24 Hours Wall">
+            </label>
+            <label>
+              Description (English)
+              <textarea id="config-splash-desc-en" rows="3" placeholder="Default description..."></textarea>
+            </label>
+          </div>
+        </div>
+
         <button id="admin-save-config" class="admin-btn admin-btn-primary">💾 Save All Changes</button>
         <p class="admin-note">⚠️ Changes apply immediately. Users must refresh to see updates.</p>
       </div>
@@ -355,6 +419,28 @@
 
   <!-- Admin Access Button (bottom-right corner) -->
   <button id="admin-access-btn" class="admin-access-btn" title="Admin Panel">⚙️</button>
+
+  <!-- First-Time User Splash Screen -->
+  <div id="splash-screen" class="hidden">
+    <div class="splash-content">
+      <button id="splash-lang-toggle" class="splash-lang-btn">English</button>
+      <div id="splash-id" class="splash-lang active">
+        <h1>Tembok 24 Jam</h1>
+        <p id="splash-desc-id">Selamat datang di kanvas bersama tanpa batas! Di sini kamu bisa menggambar dan menulis bersama orang-orang dari seluruh dunia. Semua gambar akan menghilang dalam 24 jam — seperti kapur di papan tulis. Gunakan tinta dengan bijak dan biarkan kreativitasmu mengalir!</p>
+        <button class="splash-ok-btn splash-ok">Mengerti!</button>
+      </div>
+      <div id="splash-en" class="splash-lang">
+        <h1>24 Hours Wall</h1>
+        <p id="splash-desc-en">Welcome to the infinite collaborative canvas! Here you can draw and write together with people from around the world. All drawings disappear after 24 hours — like chalk on a blackboard. Use your ink wisely and let your creativity flow!</p>
+        <button class="splash-ok-btn splash-ok">Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden input to trigger mobile keyboard for text tool -->
+  <input id="mobile-text-input" type="text"
+    style="position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;left:-9999px;top:0;font-size:16px;"
+    autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
 
   <script type="module" src="/src/main.js"></script>
 </body>

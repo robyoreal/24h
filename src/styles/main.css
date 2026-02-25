@@ -975,3 +975,136 @@ body {
     min-width: 300px;
   }
 }
+
+/* ===== Splash Screen ===== */
+#splash-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+#splash-screen.hidden {
+  display: none;
+}
+
+.splash-content {
+  position: relative;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 16px;
+  padding: 40px 48px 36px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
+  text-align: center;
+}
+
+#splash-lang-toggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #aaa;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+#splash-lang-toggle:hover {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: #4a9eff;
+  color: #4a9eff;
+}
+
+.splash-lang {
+  display: none;
+}
+
+.splash-lang.active {
+  display: block;
+}
+
+.splash-lang h1 {
+  font-size: 30px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 16px;
+  letter-spacing: -0.3px;
+}
+
+.splash-lang p {
+  color: #bbb;
+  font-size: 15px;
+  line-height: 1.75;
+  margin: 0 0 28px;
+}
+
+.splash-ok-btn {
+  background: #4a9eff;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 36px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.12s;
+}
+
+.splash-ok-btn:hover {
+  background: #3a8eef;
+}
+
+.splash-ok-btn:active {
+  transform: scale(0.96);
+}
+
+/* Admin panel textareas */
+#config-splash-desc-id,
+#config-splash-desc-en {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+#config-icon-tool-brush,
+#config-icon-tool-text,
+#config-icon-tool-eraser,
+#config-icon-lock-unlock,
+#config-icon-lock-brush,
+#config-icon-lock-movement,
+#config-icon-undo,
+#config-icon-admin {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+@media (max-width: 600px) {
+  .splash-content {
+    padding: 36px 20px 28px;
+  }
+
+  .splash-lang h1 {
+    font-size: 24px;
+  }
+
+  .splash-lang p {
+    font-size: 14px;
+  }
+}

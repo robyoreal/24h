@@ -180,6 +180,24 @@ function populateConfigForm() {
   document.getElementById('config-unlimited-ink').checked = currentConfig.unlimitedInk || false;
   document.getElementById('config-allow-text').checked = currentConfig.allowText;
   document.getElementById('config-allow-eraser').checked = currentConfig.allowEraser;
+
+  // Button icon URLs
+  const icons = currentConfig.buttonIcons || {};
+  document.getElementById('config-icon-tool-brush').value    = icons.toolBrush    || '';
+  document.getElementById('config-icon-tool-text').value     = icons.toolText     || '';
+  document.getElementById('config-icon-tool-eraser').value   = icons.toolEraser   || '';
+  document.getElementById('config-icon-lock-unlock').value   = icons.lockUnlock   || '';
+  document.getElementById('config-icon-lock-brush').value    = icons.lockBrush    || '';
+  document.getElementById('config-icon-lock-movement').value = icons.lockMovement || '';
+  document.getElementById('config-icon-undo').value          = icons.undo          || '';
+  document.getElementById('config-icon-admin').value         = icons.admin         || '';
+
+  // Splash screen content
+  const splash = currentConfig.splashContent || {};
+  document.getElementById('config-splash-title-id').value = splash.titleId || '';
+  document.getElementById('config-splash-desc-id').value  = splash.descId  || '';
+  document.getElementById('config-splash-title-en').value = splash.titleEn || '';
+  document.getElementById('config-splash-desc-en').value  = splash.descEn  || '';
 }
 
 function renderColorPalette() {
@@ -414,6 +432,26 @@ async function handleSaveConfig() {
   currentConfig.unlimitedInk = document.getElementById('config-unlimited-ink').checked;
   currentConfig.allowText = document.getElementById('config-allow-text').checked;
   currentConfig.allowEraser = document.getElementById('config-allow-eraser').checked;
+
+  // Button icon URLs
+  currentConfig.buttonIcons = {
+    toolBrush:    document.getElementById('config-icon-tool-brush').value.trim(),
+    toolText:     document.getElementById('config-icon-tool-text').value.trim(),
+    toolEraser:   document.getElementById('config-icon-tool-eraser').value.trim(),
+    lockUnlock:   document.getElementById('config-icon-lock-unlock').value.trim(),
+    lockBrush:    document.getElementById('config-icon-lock-brush').value.trim(),
+    lockMovement: document.getElementById('config-icon-lock-movement').value.trim(),
+    undo:         document.getElementById('config-icon-undo').value.trim(),
+    admin:        document.getElementById('config-icon-admin').value.trim(),
+  };
+
+  // Splash screen content
+  currentConfig.splashContent = {
+    titleId: document.getElementById('config-splash-title-id').value.trim(),
+    descId:  document.getElementById('config-splash-desc-id').value.trim(),
+    titleEn: document.getElementById('config-splash-title-en').value.trim(),
+    descEn:  document.getElementById('config-splash-desc-en').value.trim(),
+  };
 
   const success = await saveAdminConfig(currentConfig);
   if (success) {
