@@ -165,34 +165,38 @@ function applyAdminConfig(config) {
 // Replace a toolbar SVG icon with a custom image URL
 function applyButtonIcons(buttonIcons) {
   if (!buttonIcons) return;
-  const iconMap = {
-    toolBrush:    'tool-icon-brush',
-    toolText:     'tool-icon-text',
-    toolEraser:   'tool-icon-eraser',
-    lockUnlock:   'lock-icon-unlock',
-    lockBrush:    'lock-icon-brush',
-    lockMovement: 'lock-icon-movement',
-  };
-  for (const [key, elemId] of Object.entries(iconMap)) {
-    const svgCode = (buttonIcons[key] || '').trim();
-    const el = document.getElementById(elemId);
-    if (!el || !svgCode) continue;
 
-    if (svgCode.toLowerCase().startsWith('<svg')) {
-      // Full <svg> element pasted — extract inner content and copy viewBox
+  function applySvg(el, svgCode) {
+    if (!el || !svgCode.trim()) return;
+    const code = svgCode.trim();
+    if (code.toLowerCase().startsWith('<svg')) {
       const tmp = document.createElement('div');
-      tmp.innerHTML = svgCode;
+      tmp.innerHTML = code;
       const innerSvg = tmp.querySelector('svg');
       if (innerSvg) {
-        if (innerSvg.hasAttribute('viewBox')) {
-          el.setAttribute('viewBox', innerSvg.getAttribute('viewBox'));
-        }
+        if (innerSvg.hasAttribute('viewBox')) el.setAttribute('viewBox', innerSvg.getAttribute('viewBox'));
         el.innerHTML = innerSvg.innerHTML;
       }
     } else {
-      // Inner SVG elements pasted (paths, circles, rects, etc.)
-      el.innerHTML = svgCode;
+      el.innerHTML = code;
     }
+  }
+
+  // Each entry: [iconKey, mainIconId, arcButtonSelector]
+  const targets = [
+    ['toolBrush',    'tool-icon-brush',    '#tool-arc [data-tool="brush"] svg'],
+    ['toolText',     'tool-icon-text',     '#tool-arc [data-tool="text"] svg'],
+    ['toolEraser',   'tool-icon-eraser',   '#tool-arc [data-tool="eraser"] svg'],
+    ['lockUnlock',   'lock-icon-unlock',   '#lock-arc [data-lock="unlock"] svg'],
+    ['lockBrush',    'lock-icon-brush',    '#lock-arc [data-lock="brush"] svg'],
+    ['lockMovement', 'lock-icon-movement', '#lock-arc [data-lock="movement"] svg'],
+  ];
+
+  for (const [key, mainId, arcSel] of targets) {
+    const svgCode = (buttonIcons[key] || '').trim();
+    if (!svgCode) continue;
+    applySvg(document.getElementById(mainId), svgCode);
+    applySvg(document.querySelector(arcSel), svgCode);
   }
 }
 
