@@ -262,22 +262,47 @@ export class CanvasManager {
     this.renderTileGrid(2000);
 
     const now = Date.now();
+    const BUCKET_MS = 30 * 60 * 1000; // 30-minute buckets → 48 layers max across 24h
 
-    // Render all strokes from loaded tiles
-    for (const [tileId, tileData] of this.tiles.entries()) {
-      if (!tileData.strokes) continue;
-      
-      for (const stroke of tileData.strokes) {
+    // Collect all committed strokes (tiles + local buffer)
+    const allStrokes = [];
+    for (const [, tileData] of this.tiles.entries()) {
+      if (tileData.strokes) allStrokes.push(...tileData.strokes);
+    }
+    allStrokes.push(...this.localStrokes);
+
+    // Group strokes into 30-minute buckets by timestamp
+    const buckets = new Map();
+    for (const stroke of allStrokes) {
+      const bucketKey = Math.floor(stroke.timestamp / BUCKET_MS);
+      if (!buckets.has(bucketKey)) buckets.set(bucketKey, []);
+      buckets.get(bucketKey).push(stroke);
+    }
+
+    // Render oldest bucket first; after each bucket apply a white overlay
+    // whose opacity = bucket_age / 24h. Newer strokes are drawn on top,
+    // always fully opaque, and covered by progressively less white.
+    const sortedKeys = [...buckets.keys()].sort((a, b) => a - b);
+    for (const bucketKey of sortedKeys) {
+      const bucketTimestamp = bucketKey * BUCKET_MS;
+      const age = now - bucketTimestamp;
+      const whiteOpacity = Math.min(1, Math.max(0, age / FADE_DURATION));
+
+      // Draw all strokes in this bucket at full opacity
+      for (const stroke of buckets.get(bucketKey)) {
         this.renderStroke(stroke, now);
       }
+
+      // Cover with white layer proportional to this bucket's age
+      if (whiteOpacity > 0) {
+        this.ctx.globalAlpha = whiteOpacity;
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.globalAlpha = 1;
+      }
     }
-    
-    // Render local strokes (not yet saved)
-    for (const stroke of this.localStrokes) {
-      this.renderStroke(stroke, now);
-    }
-    
-    // Render current stroke being drawn
+
+    // Render current in-progress stroke on top — always fully visible, no white layer
     if (this.currentStroke) {
       this.renderStroke(this.currentStroke, now);
     }
@@ -320,50 +345,41 @@ export class CanvasManager {
     }
   }
   
-  // Render individual stroke
+  // Render individual stroke at full opacity.
+  // Fading is handled by the white overlay in render() — not here.
+  // Exception: white strokes (#FFFFFF) act as erasers and disappear instantly at 24h.
   renderStroke(stroke, now) {
-    // Calculate opacity based on age
     const age = now - stroke.timestamp;
     const isWhite = stroke.color && stroke.color.toUpperCase() === '#FFFFFF';
-    // White strokes (brush white or eraser) don't fade — they stay fully opaque
-    // until the 24h mark, then disappear instantly
-    const opacity = isWhite
-      ? (age >= FADE_DURATION ? 0 : 1)
-      : Math.max(0, 1 - (age / FADE_DURATION));
 
-    if (opacity <= 0) return; // Don't render fully faded strokes
-    
+    // White strokes vanish instantly once they pass the 24h mark
+    if (isWhite && age >= FADE_DURATION) return;
+
     if (stroke.type === 'text') {
-      // Render text
       const fontFamily = stroke.fontFamily || 'sans-serif';
       this.ctx.font = `${stroke.fontSize * this.viewport.zoom}px ${fontFamily}`;
       this.ctx.fillStyle = stroke.color;
-      this.ctx.globalAlpha = opacity;
 
       const screenPos = this.worldToScreen(stroke.position[0], stroke.position[1]);
       this.ctx.fillText(stroke.text, screenPos.x, screenPos.y);
-
-      this.ctx.globalAlpha = 1;
     } else {
-      // Render drawing stroke
       if (!stroke.points || stroke.points.length < 6) return; // Need at least 2 points (6 values)
-      
+
       this.ctx.strokeStyle = stroke.color;
-      this.ctx.globalAlpha = opacity;
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
-      
+
       this.ctx.beginPath();
-      
+
       // Points are stored as flat array: [x1, y1, w1, x2, y2, w2, ...]
       for (let i = 0; i < stroke.points.length; i += 3) {
         const x = stroke.points[i];
         const y = stroke.points[i + 1];
         const width = stroke.points[i + 2];
-        
+
         const screenPos = this.worldToScreen(x, y);
         const scaledWidth = width * this.viewport.zoom;
-        
+
         if (i === 0) {
           this.ctx.moveTo(screenPos.x, screenPos.y);
         } else {
@@ -371,9 +387,8 @@ export class CanvasManager {
           this.ctx.lineTo(screenPos.x, screenPos.y);
         }
       }
-      
+
       this.ctx.stroke();
-      this.ctx.globalAlpha = 1;
     }
   }
   

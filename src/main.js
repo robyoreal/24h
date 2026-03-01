@@ -1351,13 +1351,23 @@ async function flushStrokes() {
     const tileId = getTileId(strokeToSave.points[0], strokeToSave.points[1], TILE_SIZE);
     strokesByTile[tileId] = [strokeToSave];
 
-    // Save to Firebase
-    const success = await saveStrokes(strokesByTile, state.userIpHash, strokeToSave.inkUsed);
+    // Save to Firebase with retry (exponential backoff: 2s, 4s, 8s, 16s)
+    let flushed = false;
+    for (let attempt = 0; attempt <= 4 && !flushed; attempt++) {
+      if (attempt > 0) {
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`Retrying in-progress stroke save (attempt ${attempt})...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+      flushed = await saveStrokes(strokesByTile, state.userIpHash, strokeToSave.inkUsed);
+    }
 
-    if (success) {
+    if (flushed) {
       // Mark that this stroke was already saved to Firebase
       state.currentStrokeWasFlushed = true;
       console.log('In-progress stroke saved. User continues drawing...');
+    } else {
+      console.error('Failed to save in-progress stroke after retries');
     }
 
     // Reset timer for next auto-flush cycle
@@ -1393,15 +1403,23 @@ async function flushStrokes() {
   // Calculate total ink used
   const totalInkUsed = localStrokes.reduce((sum, stroke) => sum + stroke.inkUsed, 0);
 
-  // Save to Firebase
-  const success = await saveStrokes(strokesByTile, state.userIpHash, totalInkUsed);
+  // Save to Firebase with retry (exponential backoff: 2s, 4s, 8s, 16s)
+  let saved = false;
+  for (let attempt = 0; attempt <= 4 && !saved; attempt++) {
+    if (attempt > 0) {
+      const delay = Math.pow(2, attempt) * 1000;
+      console.log(`Retrying stroke save (attempt ${attempt})...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+    saved = await saveStrokes(strokesByTile, state.userIpHash, totalInkUsed);
+  }
 
-  if (success) {
+  if (saved) {
     state.canvasManager.clearLocalStrokes();
     await updateUserRefillTime(state.userIpHash);
     console.log('Strokes saved successfully');
   } else {
-    console.error('Failed to save strokes');
+    console.error('Failed to save strokes after retries');
   }
 }
 
