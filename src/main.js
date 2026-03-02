@@ -209,6 +209,18 @@ function applyButtonIcons(buttonIcons) {
     const adminBtn = document.getElementById('admin-access-btn');
     if (adminBtn) adminBtn.innerHTML = adminCode;
   }
+
+  // Upload indicator — the whole div spins, just swap the inner SVG shape
+  const uploadCode = (buttonIcons.uploadIndicator || '').trim();
+  if (uploadCode) applySvg(document.getElementById('upload-indicator-icon'), uploadCode);
+}
+
+function showUploadIndicator() {
+  document.getElementById('upload-indicator')?.classList.remove('hidden');
+}
+
+function hideUploadIndicator() {
+  document.getElementById('upload-indicator')?.classList.add('hidden');
 }
 
 // First-time user splash screen
@@ -1351,23 +1363,28 @@ async function flushStrokes() {
     const tileId = getTileId(strokeToSave.points[0], strokeToSave.points[1], TILE_SIZE);
     strokesByTile[tileId] = [strokeToSave];
 
-    // Save to Firebase with retry (exponential backoff: 2s, 4s, 8s, 16s)
-    let flushed = false;
-    for (let attempt = 0; attempt <= 4 && !flushed; attempt++) {
-      if (attempt > 0) {
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`Retrying in-progress stroke save (attempt ${attempt})...`);
-        await new Promise(r => setTimeout(r, delay));
+    showUploadIndicator();
+    try {
+      // Save to Firebase with retry (exponential backoff: 2s, 4s, 8s, 16s)
+      let flushed = false;
+      for (let attempt = 0; attempt <= 4 && !flushed; attempt++) {
+        if (attempt > 0) {
+          const delay = Math.pow(2, attempt) * 1000;
+          console.log(`Retrying in-progress stroke save (attempt ${attempt})...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
+        flushed = await saveStrokes(strokesByTile, state.userIpHash, strokeToSave.inkUsed);
       }
-      flushed = await saveStrokes(strokesByTile, state.userIpHash, strokeToSave.inkUsed);
-    }
 
-    if (flushed) {
-      // Mark that this stroke was already saved to Firebase
-      state.currentStrokeWasFlushed = true;
-      console.log('In-progress stroke saved. User continues drawing...');
-    } else {
-      console.error('Failed to save in-progress stroke after retries');
+      if (flushed) {
+        // Mark that this stroke was already saved to Firebase
+        state.currentStrokeWasFlushed = true;
+        console.log('In-progress stroke saved. User continues drawing...');
+      } else {
+        console.error('Failed to save in-progress stroke after retries');
+      }
+    } finally {
+      hideUploadIndicator();
     }
 
     // Reset timer for next auto-flush cycle
@@ -1403,23 +1420,28 @@ async function flushStrokes() {
   // Calculate total ink used
   const totalInkUsed = localStrokes.reduce((sum, stroke) => sum + stroke.inkUsed, 0);
 
-  // Save to Firebase with retry (exponential backoff: 2s, 4s, 8s, 16s)
-  let saved = false;
-  for (let attempt = 0; attempt <= 4 && !saved; attempt++) {
-    if (attempt > 0) {
-      const delay = Math.pow(2, attempt) * 1000;
-      console.log(`Retrying stroke save (attempt ${attempt})...`);
-      await new Promise(r => setTimeout(r, delay));
+  showUploadIndicator();
+  try {
+    // Save to Firebase with retry (exponential backoff: 2s, 4s, 8s, 16s)
+    let saved = false;
+    for (let attempt = 0; attempt <= 4 && !saved; attempt++) {
+      if (attempt > 0) {
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`Retrying stroke save (attempt ${attempt})...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+      saved = await saveStrokes(strokesByTile, state.userIpHash, totalInkUsed);
     }
-    saved = await saveStrokes(strokesByTile, state.userIpHash, totalInkUsed);
-  }
 
-  if (saved) {
-    state.canvasManager.clearLocalStrokes();
-    await updateUserRefillTime(state.userIpHash);
-    console.log('Strokes saved successfully');
-  } else {
-    console.error('Failed to save strokes after retries');
+    if (saved) {
+      state.canvasManager.clearLocalStrokes();
+      await updateUserRefillTime(state.userIpHash);
+      console.log('Strokes saved successfully');
+    } else {
+      console.error('Failed to save strokes after retries');
+    }
+  } finally {
+    hideUploadIndicator();
   }
 }
 

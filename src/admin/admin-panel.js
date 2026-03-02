@@ -189,8 +189,9 @@ function populateConfigForm() {
   document.getElementById('config-icon-lock-unlock').value   = icons.lockUnlock   || '';
   document.getElementById('config-icon-lock-brush').value    = icons.lockBrush    || '';
   document.getElementById('config-icon-lock-movement').value = icons.lockMovement || '';
-  document.getElementById('config-icon-undo').value          = icons.undo          || '';
-  document.getElementById('config-icon-admin').value         = icons.admin         || '';
+  document.getElementById('config-icon-undo').value            = icons.undo            || '';
+  document.getElementById('config-icon-admin').value           = icons.admin           || '';
+  document.getElementById('config-icon-upload').value          = icons.uploadIndicator || '';
 
   // Splash screen content
   const splash = currentConfig.splashContent || {};
@@ -441,8 +442,9 @@ async function handleSaveConfig() {
     lockUnlock:   document.getElementById('config-icon-lock-unlock').value.trim(),
     lockBrush:    document.getElementById('config-icon-lock-brush').value.trim(),
     lockMovement: document.getElementById('config-icon-lock-movement').value.trim(),
-    undo:         document.getElementById('config-icon-undo').value.trim(),
-    admin:        document.getElementById('config-icon-admin').value.trim(),
+    undo:            document.getElementById('config-icon-undo').value.trim(),
+    admin:           document.getElementById('config-icon-admin').value.trim(),
+    uploadIndicator: document.getElementById('config-icon-upload').value.trim(),
   };
 
   // Splash screen content

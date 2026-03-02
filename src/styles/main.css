@@ -351,6 +351,38 @@ body {
   cursor: wait !important;
 }
 
+/* ===== Upload Indicator (top-right spinner) ===== */
+.upload-indicator {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(30, 30, 30, 0.88);
+  border: 2px solid rgba(100, 100, 100, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  z-index: 1100;
+  animation: upload-spin 1s linear infinite;
+}
+
+.upload-indicator.hidden {
+  display: none;
+}
+
+.upload-indicator svg {
+  width: 22px;
+  height: 22px;
+}
+
+@keyframes upload-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ===== Admin Panel Styles ===== */
 
 /* Access button (bottom-right) */
