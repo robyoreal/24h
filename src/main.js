@@ -215,12 +215,19 @@ function applyButtonIcons(buttonIcons) {
   if (uploadCode) applySvg(document.getElementById('upload-indicator-icon'), uploadCode);
 }
 
+// Reference counter so upload and download can overlap without hiding each other early.
+let _networkOps = 0;
+
 function showUploadIndicator() {
+  _networkOps++;
   document.getElementById('upload-indicator')?.classList.remove('hidden');
 }
 
 function hideUploadIndicator() {
-  document.getElementById('upload-indicator')?.classList.add('hidden');
+  _networkOps = Math.max(0, _networkOps - 1);
+  if (_networkOps === 0) {
+    document.getElementById('upload-indicator')?.classList.add('hidden');
+  }
 }
 
 // First-time user splash screen
@@ -1450,28 +1457,34 @@ async function loadVisibleTiles() {
   const viewport = state.canvasManager.getViewport();
   const tileIds = getVisibleTileIds(viewport, TILE_SIZE);
 
-  for (const tileId of tileIds) {
-    // Skip if already loaded
-    if (state.canvasManager.tiles.has(tileId)) continue;
+  // Only show spinner for tiles that actually need fetching
+  const unloaded = tileIds.filter(id => !state.canvasManager.tiles.has(id));
+  if (unloaded.length === 0) return;
 
-    // Load initial tile data
-    const tileData = await loadTile(tileId);
-    if (tileData) {
-      state.canvasManager.addTile(tileId, tileData);
-    }
+  showUploadIndicator();
+  try {
+    for (const tileId of unloaded) {
+      // Load initial tile data
+      const tileData = await loadTile(tileId);
+      if (tileData) {
+        state.canvasManager.addTile(tileId, tileData);
+      }
 
-    // Subscribe to real-time updates for this tile
-    if (!state.tileListeners.has(tileId)) {
-      const unsubscribe = subscribeTileUpdates(tileId, (updatedTileId, updatedData) => {
-        // Update canvas when tile data changes
-        state.canvasManager.addTile(updatedTileId, updatedData);
-        console.log(`Tile ${updatedTileId} updated in real-time`);
-      });
+      // Subscribe to real-time updates for this tile
+      if (!state.tileListeners.has(tileId)) {
+        const unsubscribe = subscribeTileUpdates(tileId, (updatedTileId, updatedData) => {
+          // Update canvas when tile data changes
+          state.canvasManager.addTile(updatedTileId, updatedData);
+          console.log(`Tile ${updatedTileId} updated in real-time`);
+        });
 
-      if (unsubscribe) {
-        state.tileListeners.set(tileId, unsubscribe);
+        if (unsubscribe) {
+          state.tileListeners.set(tileId, unsubscribe);
+        }
       }
     }
+  } finally {
+    hideUploadIndicator();
   }
 }
 
