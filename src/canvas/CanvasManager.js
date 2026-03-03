@@ -279,32 +279,26 @@ export class CanvasManager {
       buckets.get(bucketKey).push(stroke);
     }
 
-    // Render oldest bucket first; after each bucket apply a white overlay
-    // whose opacity = bucket_age / 24h. Newer strokes are drawn on top,
-    // always fully opaque, and covered by progressively less white.
+    // Render oldest bucket first, each at opacity = 1 - age/24h.
+    // Using globalAlpha per bucket (rather than stacking white fillRects) ensures
+    // each bucket's strokes fade independently — no overlay accumulation.
+    // On a white canvas, transparent strokes are visually identical to white-overlaid strokes.
     const sortedKeys = [...buckets.keys()].sort((a, b) => a - b);
     for (const bucketKey of sortedKeys) {
       const bucketTimestamp = bucketKey * BUCKET_MS;
       const age = now - bucketTimestamp;
-      const whiteOpacity = Math.min(1, Math.max(0, age / FADE_DURATION));
+      const bucketAlpha = Math.min(1, Math.max(0, 1 - age / FADE_DURATION));
 
-      // Draw all strokes in this bucket at full opacity
+      if (bucketAlpha <= 0) continue; // bucket fully expired, skip
+
       for (const stroke of buckets.get(bucketKey)) {
-        this.renderStroke(stroke, now);
-      }
-
-      // Cover with white layer proportional to this bucket's age
-      if (whiteOpacity > 0) {
-        this.ctx.globalAlpha = whiteOpacity;
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.globalAlpha = 1;
+        this.renderStroke(stroke, now, bucketAlpha);
       }
     }
 
-    // Render current in-progress stroke on top — always fully visible, no white layer
+    // Render current in-progress stroke on top — always fully visible
     if (this.currentStroke) {
-      this.renderStroke(this.currentStroke, now);
+      this.renderStroke(this.currentStroke, now, 1);
     }
 
     // Render inline text being typed
@@ -345,27 +339,34 @@ export class CanvasManager {
     }
   }
   
-  // Render individual stroke at full opacity.
-  // Fading is handled by the white overlay in render() — not here.
-  // Exception: white strokes (#FFFFFF) act as erasers and disappear instantly at 24h.
-  renderStroke(stroke, now) {
+  // Render individual stroke.
+  // bucketAlpha: opacity from the 30-min bucket (1 = fresh, 0 = fully faded).
+  // White strokes (#FFFFFF) act as erasers — they stay fully opaque until the 24h
+  // mark, then disappear instantly; they are exempt from bucket fading.
+  renderStroke(stroke, now, bucketAlpha = 1) {
     const age = now - stroke.timestamp;
     const isWhite = stroke.color && stroke.color.toUpperCase() === '#FFFFFF';
 
-    // White strokes vanish instantly once they pass the 24h mark
-    if (isWhite && age >= FADE_DURATION) return;
+    if (isWhite && age >= FADE_DURATION) return; // white strokes vanish at 24h
+
+    // White strokes ignore bucket fading; all others use bucketAlpha
+    const alpha = isWhite ? 1 : bucketAlpha;
 
     if (stroke.type === 'text') {
       const fontFamily = stroke.fontFamily || 'sans-serif';
       this.ctx.font = `${stroke.fontSize * this.viewport.zoom}px ${fontFamily}`;
       this.ctx.fillStyle = stroke.color;
+      this.ctx.globalAlpha = alpha;
 
       const screenPos = this.worldToScreen(stroke.position[0], stroke.position[1]);
       this.ctx.fillText(stroke.text, screenPos.x, screenPos.y);
+
+      this.ctx.globalAlpha = 1;
     } else {
       if (!stroke.points || stroke.points.length < 6) return; // Need at least 2 points (6 values)
 
       this.ctx.strokeStyle = stroke.color;
+      this.ctx.globalAlpha = alpha;
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
 
@@ -389,6 +390,7 @@ export class CanvasManager {
       }
 
       this.ctx.stroke();
+      this.ctx.globalAlpha = 1;
     }
   }
   
