@@ -279,26 +279,51 @@ export class CanvasManager {
       buckets.get(bucketKey).push(stroke);
     }
 
-    // Render oldest bucket first, each at opacity = 1 - age/24h.
-    // Using globalAlpha per bucket (rather than stacking white fillRects) ensures
-    // each bucket's strokes fade independently — no overlay accumulation.
-    // On a white canvas, transparent strokes are visually identical to white-overlaid strokes.
+    // Render oldest→newest. Strokes always draw at full opacity; a white overlay
+    // after each bucket handles fading. Overlays accumulate, so each overlay
+    // opacity is adjusted with the formula:
+    //   p_k = 1 - (1 - W_k) / (1 - W_{k+1})
+    // where W_k = age_k / FADE_DURATION is the desired final whiteness.
+    // This guarantees the combined effect of all subsequent overlays produces
+    // exactly the right whiteness for each bucket (linear, no premature fading).
     const sortedKeys = [...buckets.keys()].sort((a, b) => a - b);
-    for (const bucketKey of sortedKeys) {
-      const bucketTimestamp = bucketKey * BUCKET_MS;
-      const age = now - bucketTimestamp;
-      const bucketAlpha = Math.min(1, Math.max(0, 1 - age / FADE_DURATION));
 
-      if (bucketAlpha <= 0) continue; // bucket fully expired, skip
+    // Desired final whiteness per bucket (index 0 = oldest)
+    const desiredW = sortedKeys.map(key => {
+      const age = now - key * BUCKET_MS;
+      return Math.min(1, Math.max(0, age / FADE_DURATION));
+    });
 
-      for (const stroke of buckets.get(bucketKey)) {
-        this.renderStroke(stroke, now, bucketAlpha);
+    for (let i = 0; i < sortedKeys.length; i++) {
+      if (desiredW[i] >= 1) continue; // fully expired, skip
+
+      // Draw all strokes in this bucket at 100% opacity
+      for (const stroke of buckets.get(sortedKeys[i])) {
+        this.renderStroke(stroke, now);
+      }
+
+      // Adjusted overlay opacity so that after all subsequent overlays,
+      // this bucket's strokes land at exactly desiredW[i] whiteness.
+      let p;
+      if (i === sortedKeys.length - 1) {
+        // Newest bucket: no subsequent overlays, use desired directly
+        p = desiredW[i];
+      } else {
+        const wNext = desiredW[i + 1];
+        p = wNext >= 1 ? 1 : Math.max(0, 1 - (1 - desiredW[i]) / (1 - wNext));
+      }
+
+      if (p > 0) {
+        this.ctx.globalAlpha = p;
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.globalAlpha = 1;
       }
     }
 
-    // Render current in-progress stroke on top — always fully visible
+    // Render current in-progress stroke on top — always fully visible, no white layer
     if (this.currentStroke) {
-      this.renderStroke(this.currentStroke, now, 1);
+      this.renderStroke(this.currentStroke, now);
     }
 
     // Render inline text being typed
@@ -339,40 +364,32 @@ export class CanvasManager {
     }
   }
   
-  // Render individual stroke.
-  // bucketAlpha: opacity from the 30-min bucket (1 = fresh, 0 = fully faded).
-  // White strokes (#FFFFFF) act as erasers — they stay fully opaque until the 24h
-  // mark, then disappear instantly; they are exempt from bucket fading.
-  renderStroke(stroke, now, bucketAlpha = 1) {
+  // Render individual stroke at 100% opacity.
+  // Fading is handled by white overlays in render() — not here.
+  // Exception: white strokes (#FFFFFF) act as erasers and disappear instantly at 24h.
+  renderStroke(stroke, now) {
     const age = now - stroke.timestamp;
     const isWhite = stroke.color && stroke.color.toUpperCase() === '#FFFFFF';
 
     if (isWhite && age >= FADE_DURATION) return; // white strokes vanish at 24h
 
-    // White strokes ignore bucket fading; all others use bucketAlpha
-    const alpha = isWhite ? 1 : bucketAlpha;
-
     if (stroke.type === 'text') {
       const fontFamily = stroke.fontFamily || 'sans-serif';
       this.ctx.font = `${stroke.fontSize * this.viewport.zoom}px ${fontFamily}`;
       this.ctx.fillStyle = stroke.color;
-      this.ctx.globalAlpha = alpha;
 
       const screenPos = this.worldToScreen(stroke.position[0], stroke.position[1]);
       this.ctx.fillText(stroke.text, screenPos.x, screenPos.y);
-
-      this.ctx.globalAlpha = 1;
     } else {
-      if (!stroke.points || stroke.points.length < 6) return; // Need at least 2 points (6 values)
+      if (!stroke.points || stroke.points.length < 6) return;
 
       this.ctx.strokeStyle = stroke.color;
-      this.ctx.globalAlpha = alpha;
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
 
       this.ctx.beginPath();
 
-      // Points are stored as flat array: [x1, y1, w1, x2, y2, w2, ...]
+      // Points stored as flat array: [x1, y1, w1, x2, y2, w2, ...]
       for (let i = 0; i < stroke.points.length; i += 3) {
         const x = stroke.points[i];
         const y = stroke.points[i + 1];
@@ -390,7 +407,6 @@ export class CanvasManager {
       }
 
       this.ctx.stroke();
-      this.ctx.globalAlpha = 1;
     }
   }
   
