@@ -72,9 +72,6 @@ window.appState = state;
 
 // Initialize app
 async function init() {
-  // Show splash screen for first-time users (synchronous, no dependencies)
-  initSplashScreen();
-
   // Initialize Firebase
   const firebaseReady = initFirebase();
 
@@ -96,6 +93,9 @@ async function init() {
       applyAdminConfig(adminConfig);
     }
   }
+
+  // Show splash screen after admin config is loaded so custom text is applied
+  initSplashScreen();
 
   // Setup event listeners
   setupBottomToolbar();
